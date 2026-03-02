@@ -509,6 +509,9 @@ function SettingsDialog({
       >
         <DialogHeader className="pb-3">
           <DialogTitle className="text-base font-medium">Impostazioni</DialogTitle>
+          <DialogDescription className="sr-only">
+            Personalizza le preferenze dell'applicazione
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           {/* Theme */}
@@ -958,6 +961,9 @@ function ProductDialog({
           <DialogTitle className="text-sm font-medium">
             {product ? 'Modifica Prodotto' : 'Nuovo Prodotto'}
           </DialogTitle>
+          <DialogDescription>
+            {product ? 'Modifica i dettagli del prodotto' : 'Aggiungi un nuovo prodotto alla lista'}
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-3">
@@ -1213,6 +1219,9 @@ function CategoryDialog({
       <DialogContent className="rounded-2xl max-w-[300px] p-3">
         <DialogHeader className="pb-1 sr-only">
           <DialogTitle className="text-sm">Nuova Categoria</DialogTitle>
+          <DialogDescription className="sr-only">
+            Crea una nuova categoria per organizzare i prodotti
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
           <div className="space-y-0.5">

@@ -2,12 +2,13 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  driverAdapters  = true
 }
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
+  url      = "file:./dev.db"
 }
 
 model User {
@@ -43,7 +44,7 @@ model FamilyMember {
   groupId   String
   group     FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   joinedAt  DateTime   @default(now())
-  
+
   @@unique([userId, groupId])
 }
 
@@ -60,7 +61,7 @@ model List {
   sortOrder   Int         @default(0)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
-  
+
   @@index([groupId])
 }
 
@@ -85,7 +86,7 @@ model Product {
   sortOrder     Int         @default(0)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
-  
+
   @@index([listId])
 }
 

@@ -1,13 +1,19 @@
 import { PrismaClient } from '@prisma/client'
+import { PrismaLibSQL } from '@prisma/adapter-libsql'
+import { createClient } from '@libsql/client'
 import { DEFAULT_CATEGORIES, DEFAULT_STORES } from '../src/lib/constants'
 
-// ALWAYS use persistent database
-process.env.DATABASE_URL = 'file:/home/z/.dispensa-data/dispensa.db'
+// Configurazione Turso
+const libsql = createClient({
+  url: process.env.TURSO_DATABASE_URL || 'libsql://dispesa-matto244.aws-eu-west-1.turso.io',
+  authToken: process.env.TURSO_AUTH_TOKEN,
+})
 
-const prisma = new PrismaClient()
+const adapter = new PrismaLibSQL(libsql)
+const prisma = new PrismaClient({ adapter })
 
 async function main() {
-  console.log('🌱 Seeding database...')
+  console.log('🌱 Seeding database on Turso...')
 
   // Seed categories
   console.log('📦 Seeding categories...')

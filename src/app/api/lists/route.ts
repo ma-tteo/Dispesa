@@ -1,11 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { query, execute, generateId } from '@/lib/db-turso'
 
-// Get lists for a group
+interface List {
+  id: string
+  name: string
+  icon: string | null
+  color: string | null
+  groupId: string
+  createdById: string
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+interface FamilyMember {
+  id: string
+  userId: string
+  groupId: string
+}
+
+// GET /api/lists - Get lists for a group
 export async function GET(request: NextRequest) {
   try {
     const userId = request.headers.get('x-user-id')
-
     if (!userId) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
@@ -14,88 +31,90 @@ export async function GET(request: NextRequest) {
     const groupId = searchParams.get('groupId')
 
     if (!groupId) {
-      return NextResponse.json({ error: 'ID gruppo obbligatorio' }, { status: 400 })
+      return NextResponse.json({ error: 'GroupId è obbligatorio' }, { status: 400 })
     }
 
-    // Verify user is a member of the group
-    const membership = await db.familyMember.findUnique({
-      where: { userId_groupId: { userId, groupId } },
-    })
+    // Check if user is member of the group
+    const members = await query<FamilyMember>(
+      'SELECT id FROM FamilyMember WHERE userId = ? AND groupId = ?',
+      [userId, groupId]
+    )
 
-    if (!membership) {
+    if (members.length === 0) {
       return NextResponse.json({ error: 'Non sei membro di questo gruppo' }, { status: 403 })
     }
 
-    const lists = await db.list.findMany({
-      where: { groupId },
-      include: {
-        _count: { select: { products: true } },
-        createdBy: { select: { id: true, name: true } },
-      },
-      orderBy: { sortOrder: 'asc' },
-    })
+    const lists = await query<List & { productCount: number }>(`
+      SELECT l.*, COUNT(p.id) as productCount
+      FROM List l
+      LEFT JOIN Product p ON l.id = p.listId
+      WHERE l.groupId = ?
+      GROUP BY l.id
+      ORDER BY l.sortOrder ASC, l.createdAt DESC
+    `, [groupId])
 
     return NextResponse.json({ lists })
   } catch (error) {
-    console.error('Get lists error:', error)
+    console.error('Error fetching lists:', error)
     return NextResponse.json({ error: 'Errore durante il recupero delle liste' }, { status: 500 })
   }
 }
 
-// Create a new list
+// POST /api/lists - Create a new list
 export async function POST(request: NextRequest) {
   try {
     const userId = request.headers.get('x-user-id')
-
     if (!userId) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
 
     const body = await request.json()
-    const { name, icon, color, groupId } = body
+    const { name, groupId, icon, color } = body
 
-    if (!name || !name.trim()) {
-      return NextResponse.json({ error: 'Il nome della lista è obbligatorio' }, { status: 400 })
+    if (!name || !groupId) {
+      return NextResponse.json({ error: 'Nome e gruppo sono obbligatori' }, { status: 400 })
     }
 
-    if (!groupId) {
-      return NextResponse.json({ error: 'ID gruppo obbligatorio' }, { status: 400 })
-    }
+    // Check if user is member of the group
+    const members = await query<FamilyMember>(
+      'SELECT id FROM FamilyMember WHERE userId = ? AND groupId = ?',
+      [userId, groupId]
+    )
 
-    // Verify user is a member of the group
-    const membership = await db.familyMember.findUnique({
-      where: { userId_groupId: { userId, groupId } },
-    })
-
-    if (!membership) {
+    if (members.length === 0) {
       return NextResponse.json({ error: 'Non sei membro di questo gruppo' }, { status: 403 })
     }
 
     // Get max sortOrder
-    const maxSort = await db.list.findFirst({
-      where: { groupId },
-      orderBy: { sortOrder: 'desc' },
-      select: { sortOrder: true },
-    })
+    const maxOrder = await query<{ max: number }>(
+      'SELECT COALESCE(MAX(sortOrder), -1) as max FROM List WHERE groupId = ?',
+      [groupId]
+    )
+    const sortOrder = (maxOrder[0]?.max ?? -1) + 1
 
-    const list = await db.list.create({
-      data: {
-        name: name.trim(),
-        icon: icon || null,
-        color: color || null,
-        groupId,
-        createdById: userId,
-        sortOrder: (maxSort?.sortOrder || 0) + 1,
-      },
-      include: {
-        _count: { select: { products: true } },
-        createdBy: { select: { id: true, name: true } },
-      },
-    })
+    const id = generateId()
+    const now = new Date().toISOString()
+
+    await execute(
+      'INSERT INTO List (id, name, icon, color, groupId, createdById, sortOrder, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, name.trim(), icon || null, color || null, groupId, userId, sortOrder, now, now]
+    )
+
+    const list: List = {
+      id,
+      name: name.trim(),
+      icon: icon || null,
+      color: color || null,
+      groupId,
+      createdById: userId,
+      sortOrder,
+      createdAt: now,
+      updatedAt: now
+    }
 
     return NextResponse.json({ list })
   } catch (error) {
-    console.error('Create list error:', error)
+    console.error('Error creating list:', error)
     return NextResponse.json({ error: 'Errore durante la creazione della lista' }, { status: 500 })
   }
 }

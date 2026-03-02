@@ -1,24 +1,30 @@
 import { PrismaClient } from '@prisma/client'
-import fs from 'fs'
-import path from 'path'
+import { PrismaLibSql } from '@prisma/adapter-libsql'
+import { createClient } from '@libsql/client'
 
-// ALWAYS use persistent database location
-const PERSISTENT_DIR = '/home/z/.dispensa-data'
-const PERSISTENT_DB = `${PERSISTENT_DIR}/dispensa.db`
+// Configurazione Turso (database cloud persistente)
+// Trim per rimuovere eventuali whitespace/newline nascosti
+const tursoUrl = process.env.TURSO_DATABASE_URL?.trim()
+const tursoToken = process.env.TURSO_AUTH_TOKEN?.trim()
 
-// Ensure persistent directory exists
-if (!fs.existsSync(PERSISTENT_DIR)) {
-  fs.mkdirSync(PERSISTENT_DIR, { recursive: true })
-  console.log('[DB] Created persistent directory:', PERSISTENT_DIR)
+if (!tursoUrl) {
+  console.error('[DB] ERROR: TURSO_DATABASE_URL is missing!')
+  throw new Error('TURSO_DATABASE_URL is required')
 }
 
-// Check if persistent database exists, if not we need to initialize it
-const dbExists = fs.existsSync(PERSISTENT_DB)
+if (!tursoToken) {
+  console.error('[DB] ERROR: TURSO_AUTH_TOKEN is missing!')
+  throw new Error('TURSO_AUTH_TOKEN is required')
+}
 
-// ALWAYS set DATABASE_URL to persistent location
-process.env.DATABASE_URL = `file:${PERSISTENT_DB}`
+console.log('[DB] Connecting to Turso:', tursoUrl.substring(0, 40) + '...')
 
-console.log(`[DB] Using database at: ${PERSISTENT_DB} (exists: ${dbExists})`)
+const libsql = createClient({
+  url: tursoUrl,
+  authToken: tursoToken,
+})
+
+const adapter = new PrismaLibSql(libsql)
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -27,7 +33,8 @@ const globalForPrisma = globalThis as unknown as {
 export const db =
   globalForPrisma.prisma ??
   new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['error'] : ['error'],
+    adapter,
+    log: ['error'],
   })
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db

@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { query } from '@/lib/db-turso'
 import bcrypt from 'bcryptjs'
+
+interface User {
+  id: string
+  email: string
+  name: string | null
+  password: string
+  avatar: string | null
+  createdAt: string
+  updatedAt: string
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,18 +24,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const user = await db.user.findUnique({
-      where: { email },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        avatar: true,
-        password: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    })
+    const users = await query<User>(
+      'SELECT id, email, name, password, avatar, createdAt, updatedAt FROM User WHERE email = ?',
+      [email]
+    )
+
+    const user = users[0]
 
     if (!user) {
       return NextResponse.json(
