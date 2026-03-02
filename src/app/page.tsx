@@ -54,8 +54,8 @@ const categoryIconMap: Record<string, string> = {
 
 // API helper
 const api = async (url: string, options: RequestInit = {}, userId?: string) => {
-  // Ensure trailing slash to avoid 308 redirect
-  const normalizedUrl = url.endsWith('/') ? url : `${url}/`
+  // Add trailing slash only for paths without query parameters to avoid 308 redirect
+  const normalizedUrl = url.includes('?') ? url : (url.endsWith('/') ? url : `${url}/`)
   
   const headers: HeadersInit = {
     'Content-Type': 'application/json',

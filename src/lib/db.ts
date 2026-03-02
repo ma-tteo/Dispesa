@@ -2,33 +2,23 @@ import { PrismaClient } from '@prisma/client'
 import fs from 'fs'
 import path from 'path'
 
-// Determine database path
-const possiblePaths = [
-  '/home/z/.dispensa-data/dispensa.db',  // Persistent location (priority)
-  '/home/z/my-project/db/custom.db',      // Project location
-  path.join(process.cwd(), 'db', 'custom.db'), // Relative path
-]
+// ALWAYS use persistent database location
+const PERSISTENT_DIR = '/home/z/.dispensa-data'
+const PERSISTENT_DB = `${PERSISTENT_DIR}/dispensa.db`
 
-let dbPath = possiblePaths[0]
-
-// Find the first existing database
-for (const p of possiblePaths) {
-  if (fs.existsSync(p)) {
-    dbPath = p
-    break
-  }
+// Ensure persistent directory exists
+if (!fs.existsSync(PERSISTENT_DIR)) {
+  fs.mkdirSync(PERSISTENT_DIR, { recursive: true })
+  console.log('[DB] Created persistent directory:', PERSISTENT_DIR)
 }
 
-// If no database exists, create in first location
-const dbDir = path.dirname(dbPath)
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true })
-}
+// Check if persistent database exists, if not we need to initialize it
+const dbExists = fs.existsSync(PERSISTENT_DB)
 
-// Set DATABASE_URL
-process.env.DATABASE_URL = `file:${dbPath}`
+// ALWAYS set DATABASE_URL to persistent location
+process.env.DATABASE_URL = `file:${PERSISTENT_DB}`
 
-console.log(`[DB] Using database at: ${dbPath}`)
+console.log(`[DB] Using database at: ${PERSISTENT_DB} (exists: ${dbExists})`)
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -37,7 +27,7 @@ const globalForPrisma = globalThis as unknown as {
 export const db =
   globalForPrisma.prisma ??
   new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
+    log: process.env.NODE_ENV === 'development' ? ['error'] : ['error'],
   })
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db

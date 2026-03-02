@@ -15,7 +15,7 @@
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
     "postinstall": "prisma generate && bun run db:init",
-    "db:init": "mkdir -p /home/z/.dispensa-data && (cp /home/z/my-project/db/custom.db /home/z/.dispensa-data/dispensa.db 2>/dev/null || true) && prisma db push --skip-generate && bun prisma/seed.ts",
+    "db:init": "mkdir -p /home/z/.dispensa-data && prisma db push --skip-generate && bun prisma/seed.ts",
     "db:push": "prisma db push",
     "db:update": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate",
