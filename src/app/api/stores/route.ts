@@ -9,8 +9,9 @@ interface Store {
   createdAt: string
 }
 
-// GET /api/stores
-export async function GET(request: NextRequest) {
+// GET /api/stores - Get all stores (public, read-only data)
+// Note: Stores are considered reference data (like categories), so public access is acceptable
+export async function GET(_request: NextRequest) {
   try {
     const stores = await query<Store>(
       'SELECT * FROM Store ORDER BY name ASC'
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ stores })
   } catch (error) {
-    console.error('Error fetching stores:', error)
+    console.error('[API] Error fetching stores:', error)
     return NextResponse.json({ error: 'Errore durante il recupero dei negozi' }, { status: 500 })
   }
 }

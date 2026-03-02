@@ -12,11 +12,15 @@ interface User {
   updatedAt: string
 }
 
+// Email validation regex
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { email, password } = body
 
+    // Validate required fields
     if (!email || !password) {
       return NextResponse.json(
         { error: 'Email e password sono obbligatori' },
@@ -24,13 +28,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validate email format
+    const normalizedEmail = email.toLowerCase().trim()
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
+      return NextResponse.json(
+        { error: 'Formato email non valido' },
+        { status: 400 }
+      )
+    }
+
+    // Query with normalized email
     const users = await query<User>(
       'SELECT id, email, name, password, avatar, createdAt, updatedAt FROM User WHERE email = ?',
-      [email]
+      [normalizedEmail]
     )
 
     const user = users[0]
 
+    // Generic error message to prevent user enumeration
     if (!user) {
       return NextResponse.json(
         { error: 'Credenziali non valide' },
@@ -51,7 +66,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ user: userWithoutPassword })
   } catch (error) {
-    console.error('Login error:', error)
+    console.error('[API] Login error:', error)
     return NextResponse.json(
       { error: 'Errore durante il login' },
       { status: 500 }

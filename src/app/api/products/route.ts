@@ -18,6 +18,9 @@ interface Product {
   sortOrder: number
   createdAt: string
   updatedAt: string
+  // Joined data
+  category?: { id: string; name: string; icon: string | null; color: string | null } | null
+  store?: { id: string; name: string; icon: string | null; color: string | null } | null
 }
 
 interface List {
@@ -30,7 +33,11 @@ interface FamilyMember {
   groupId: string
 }
 
-// GET /api/products - Get products for a list
+// Constants
+const MAX_PRODUCT_NAME_LENGTH = 200
+const MAX_NOTES_LENGTH = 500
+
+// GET /api/products - Get products for a list with joined category/store data
 export async function GET(request: NextRequest) {
   try {
     const userId = request.headers.get('x-user-id')
@@ -43,6 +50,11 @@ export async function GET(request: NextRequest) {
 
     if (!listId) {
       return NextResponse.json({ error: 'ListId è obbligatorio' }, { status: 400 })
+    }
+
+    // Validate listId format (prevent injection)
+    if (listId.length > 50 || !/^[a-zA-Z0-9_-]+$/.test(listId)) {
+      return NextResponse.json({ error: 'ListId non valido' }, { status: 400 })
     }
 
     // Verify list exists and user has access
@@ -61,14 +73,39 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Non hai accesso a questa lista' }, { status: 403 })
     }
 
-    const products = await query<Product>(
-      'SELECT * FROM Product WHERE listId = ? ORDER BY sortOrder ASC, createdAt DESC',
-      [listId]
-    )
+    // Fetch products with category and store data (optimized single query)
+    const products = await query<Product>(`
+      SELECT 
+        p.*,
+        c.id as 'category.id', c.name as 'category.name', c.icon as 'category.icon', c.color as 'category.color',
+        s.id as 'store.id', s.name as 'store.name', s.icon as 'store.icon', s.color as 'store.color'
+      FROM Product p
+      LEFT JOIN Category c ON p.categoryId = c.id
+      LEFT JOIN Store s ON p.storeId = s.id
+      WHERE p.listId = ?
+      ORDER BY p.sortOrder ASC, p.createdAt DESC
+    `, [listId])
 
-    return NextResponse.json({ products })
+    // Transform flat results to nested objects
+    const transformedProducts = products.map(p => ({
+      ...p,
+      category: p.categoryId ? {
+        id: (p as unknown as Record<string, string>)['category.id'],
+        name: (p as unknown as Record<string, string>)['category.name'],
+        icon: (p as unknown as Record<string, string>)['category.icon'],
+        color: (p as unknown as Record<string, string>)['category.color'],
+      } : null,
+      store: p.storeId ? {
+        id: (p as unknown as Record<string, string>)['store.id'],
+        name: (p as unknown as Record<string, string>)['store.name'],
+        icon: (p as unknown as Record<string, string>)['store.icon'],
+        color: (p as unknown as Record<string, string>)['store.color'],
+      } : null,
+    }))
+
+    return NextResponse.json({ products: transformedProducts })
   } catch (error) {
-    console.error('Error fetching products:', error)
+    console.error('[API] Error fetching products:', error)
     return NextResponse.json({ error: 'Errore durante il recupero dei prodotti' }, { status: 500 })
   }
 }
@@ -84,9 +121,25 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { name, listId, categoryId, storeId, forAllStores, price, weight, quantity, imageUrl, notes } = body
 
-    if (!name || !listId) {
-      return NextResponse.json({ error: 'Nome e lista sono obbligatori' }, { status: 400 })
+    // Validate required fields
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return NextResponse.json({ error: 'Il nome del prodotto è obbligatorio' }, { status: 400 })
     }
+
+    if (!listId) {
+      return NextResponse.json({ error: 'La lista è obbligatoria' }, { status: 400 })
+    }
+
+    // Sanitize inputs
+    const sanitizedName = name.trim().slice(0, MAX_PRODUCT_NAME_LENGTH)
+    const sanitizedNotes = notes?.trim().slice(0, MAX_NOTES_LENGTH) || null
+    
+    // Validate quantity
+    const sanitizedQuantity = Math.max(1, Math.min(999, parseInt(quantity) || 1))
+    
+    // Validate price
+    const sanitizedPrice = price !== null && price !== undefined ? 
+      Math.max(0, Math.min(999999.99, parseFloat(price) || 0)) : null
 
     // Verify list exists and user has access
     const lists = await query<List>('SELECT id, groupId FROM List WHERE id = ?', [listId])
@@ -117,21 +170,21 @@ export async function POST(request: NextRequest) {
     await execute(
       `INSERT INTO Product (id, name, categoryId, storeId, forAllStores, price, weight, quantity, imageUrl, status, notes, listId, createdById, sortOrder, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, name.trim(), categoryId || null, storeId || null, forAllStores ? 1 : 0, price || null, weight || null, quantity || 1, imageUrl || null, 'TO_BUY', notes || null, listId, userId, sortOrder, now, now]
+      [id, sanitizedName, categoryId || null, storeId || null, forAllStores ? 1 : 0, sanitizedPrice, weight || null, sanitizedQuantity, imageUrl || null, 'TO_BUY', sanitizedNotes, listId, userId, sortOrder, now, now]
     )
 
     const product: Product = {
       id,
-      name: name.trim(),
+      name: sanitizedName,
       categoryId: categoryId || null,
       storeId: storeId || null,
       forAllStores: forAllStores || false,
-      price: price || null,
+      price: sanitizedPrice,
       weight: weight || null,
-      quantity: quantity || 1,
+      quantity: sanitizedQuantity,
       imageUrl: imageUrl || null,
       status: 'TO_BUY',
-      notes: notes || null,
+      notes: sanitizedNotes,
       listId,
       createdById: userId,
       sortOrder,
@@ -141,7 +194,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ product })
   } catch (error) {
-    console.error('Error creating product:', error)
+    console.error('[API] Error creating product:', error)
     return NextResponse.json({ error: 'Errore durante la creazione del prodotto' }, { status: 500 })
   }
 }

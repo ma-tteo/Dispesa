@@ -18,6 +18,30 @@ interface FamilyMember {
   joinedAt: string
 }
 
+// Constants
+const MAX_GROUP_NAME_LENGTH = 100
+const INVITE_CODE_MAX_ATTEMPTS = 5
+
+// Generate unique invite code with retry
+async function generateUniqueInviteCode(): Promise<string> {
+  for (let attempt = 0; attempt < INVITE_CODE_MAX_ATTEMPTS; attempt++) {
+    const code = nanoid(8).toUpperCase()
+    
+    // Check if code already exists
+    const existing = await query<FamilyGroup>(
+      'SELECT id FROM FamilyGroup WHERE inviteCode = ?',
+      [code]
+    )
+    
+    if (existing.length === 0) {
+      return code
+    }
+  }
+  
+  // Fallback: use timestamp-based code
+  return `G${Date.now().toString(36).toUpperCase()}`
+}
+
 // GET /api/groups - Get user's groups
 export async function GET(request: NextRequest) {
   try {
@@ -37,7 +61,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ groups })
   } catch (error) {
-    console.error('Error fetching groups:', error)
+    console.error('[API] Error fetching groups:', error)
     return NextResponse.json({ error: 'Errore durante il recupero dei gruppi' }, { status: 500 })
   }
 }
@@ -53,18 +77,25 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { name } = body
 
-    if (!name || name.trim().length === 0) {
+    // Validate name
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return NextResponse.json({ error: 'Il nome del gruppo è obbligatorio' }, { status: 400 })
     }
 
+    const sanitizedName = name.trim().slice(0, MAX_GROUP_NAME_LENGTH)
+    
+    if (sanitizedName.length === 0) {
+      return NextResponse.json({ error: 'Il nome del gruppo non può essere vuoto' }, { status: 400 })
+    }
+
     const id = generateId()
-    const inviteCode = nanoid(8).toUpperCase()
+    const inviteCode = await generateUniqueInviteCode()
     const now = new Date().toISOString()
 
     // Create group
     await execute(
       'INSERT INTO FamilyGroup (id, name, inviteCode, ownerId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, name.trim(), inviteCode, userId, now, now]
+      [id, sanitizedName, inviteCode, userId, now, now]
     )
 
     // Add creator as member
@@ -76,7 +107,7 @@ export async function POST(request: NextRequest) {
 
     const group: FamilyGroup = {
       id,
-      name: name.trim(),
+      name: sanitizedName,
       inviteCode,
       ownerId: userId,
       createdAt: now,
@@ -85,7 +116,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ group })
   } catch (error) {
-    console.error('Error creating group:', error)
+    console.error('[API] Error creating group:', error)
     return NextResponse.json({ error: 'Errore durante la creazione del gruppo' }, { status: 500 })
   }
 }
