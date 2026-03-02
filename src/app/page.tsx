@@ -52,7 +52,7 @@ const categoryIconMap: Record<string, string> = {
   'Altro': '📦',
 }
 
-// API helper
+// API helper with proper error handling
 const api = async (url: string, options: RequestInit = {}, userId?: string) => {
   // Add trailing slash only for paths without query parameters to avoid 308 redirect
   const normalizedUrl = url.includes('?') ? url : (url.endsWith('/') ? url : `${url}/`)
@@ -64,10 +64,17 @@ const api = async (url: string, options: RequestInit = {}, userId?: string) => {
   }
   
   const res = await fetch(normalizedUrl, { ...options, headers })
-  const data = await res.json()
+  
+  // Try to parse JSON, but handle non-JSON responses gracefully
+  let data: Record<string, unknown>
+  try {
+    data = await res.json()
+  } catch {
+    throw new Error(`Errore del server (${res.status})`)
+  }
   
   if (!res.ok) {
-    throw new Error(data.error || 'Errore del server')
+    throw new Error((data.error as string) || 'Errore del server')
   }
   
   return data
@@ -307,7 +314,7 @@ function GroupSelection({
             </Button>
             <Avatar className="w-8 h-8">
               <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                {user.name?.[0] || user.email[0].toUpperCase()}
+                {user.name?.[0] || user.email?.[0]?.toUpperCase() || '?'}
               </AvatarFallback>
             </Avatar>
             <Button variant="ghost" size="icon" onClick={onLogout}>
@@ -882,8 +889,10 @@ function ProductDialog({
       toast.error('Seleziona un\'immagine valida')
       return
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('L\'immagine deve essere inferiore a 5MB')
+    // Must match backend MAX_FILE_SIZE (2MB)
+    const MAX_FILE_SIZE = 2 * 1024 * 1024
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error('L\'immagine deve essere inferiore a 2MB')
       return
     }
 
@@ -891,7 +900,11 @@ function ProductDialog({
     try {
       const formData = new FormData()
       formData.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+        headers: userId ? { 'x-user-id': userId } : {},
+      })
       const data = await res.json()
       if (data.imageUrl) {
         setImageUrl(data.imageUrl)
@@ -1707,7 +1720,7 @@ function Dashboard({
             const status = p.status === 'COMPLETED' ? '✓' : '○'
             content += `- ${status} ${p.name}`
             if (p.quantity > 1) content += ` (x${p.quantity})`
-            if (p.price) content += ` - €${p.price.toFixed(2)}`
+            if (p.price) content += ` - ${currencySymbol}${p.price.toFixed(2)}`
             if (p.weight) content += ` [${p.weight}]`
             content += '\n'
           })
