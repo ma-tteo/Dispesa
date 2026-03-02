@@ -1,11 +1,34 @@
 import { PrismaClient } from '@prisma/client'
+import fs from 'fs'
+import path from 'path'
 
-// Database paths
-const projectDbPath = '/home/z/my-project/db/custom.db'
-const persistentDbPath = '/home/z/.dispensa-data/dispensa.db'
+// Determine database path
+const possiblePaths = [
+  '/home/z/.dispensa-data/dispensa.db',  // Persistent location (priority)
+  '/home/z/my-project/db/custom.db',      // Project location
+  path.join(process.cwd(), 'db', 'custom.db'), // Relative path
+]
 
-// Set DATABASE_URL to project database (which is synced with persistent)
-process.env.DATABASE_URL = `file:${projectDbPath}`
+let dbPath = possiblePaths[0]
+
+// Find the first existing database
+for (const p of possiblePaths) {
+  if (fs.existsSync(p)) {
+    dbPath = p
+    break
+  }
+}
+
+// If no database exists, create in first location
+const dbDir = path.dirname(dbPath)
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true })
+}
+
+// Set DATABASE_URL
+process.env.DATABASE_URL = `file:${dbPath}`
+
+console.log(`[DB] Using database at: ${dbPath}`)
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -14,34 +37,7 @@ const globalForPrisma = globalThis as unknown as {
 export const db =
   globalForPrisma.prisma ??
   new PrismaClient({
-    log: ['query'],
+    log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
   })
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
-
-// Sync database to persistent location periodically and on exit
-import fs from 'fs'
-
-const syncToPersistent = () => {
-  try {
-    if (fs.existsSync(projectDbPath)) {
-      fs.copyFileSync(projectDbPath, persistentDbPath)
-    }
-  } catch (e) {
-    console.error('Failed to sync database:', e)
-  }
-}
-
-// Sync every 30 seconds
-if (typeof setInterval !== 'undefined') {
-  setInterval(syncToPersistent, 30000)
-}
-
-// Sync on process exit
-if (typeof process !== 'undefined') {
-  process.on('beforeExit', syncToPersistent)
-  process.on('SIGINT', () => {
-    syncToPersistent()
-    process.exit(0)
-  })
-}

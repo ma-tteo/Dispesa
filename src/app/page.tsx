@@ -54,13 +54,16 @@ const categoryIconMap: Record<string, string> = {
 
 // API helper
 const api = async (url: string, options: RequestInit = {}, userId?: string) => {
+  // Ensure trailing slash to avoid 308 redirect
+  const normalizedUrl = url.endsWith('/') ? url : `${url}/`
+  
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...(userId && { 'x-user-id': userId }),
     ...options.headers,
   }
   
-  const res = await fetch(url, { ...options, headers })
+  const res = await fetch(normalizedUrl, { ...options, headers })
   const data = await res.json()
   
   if (!res.ok) {
