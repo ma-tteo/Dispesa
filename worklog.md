@@ -182,3 +182,78 @@ Stage Summary:
 - Settings persist in database and localStorage
 - Theme changes apply instantly without page reload
 - Settings accessible from gear icon in header
+
+---
+Task ID: 11
+Agent: Main Agent
+Task: Fix UI issues and optimize performance
+
+Work Log:
+- Fixed laggy settings animation by removing unnecessary state and transitions
+- Removed transition-all from color picker buttons
+- Simplified SettingsDialog to use direct settings from props instead of local state
+- Made all dialogs more compact (reduced max-width, padding, spacing)
+- Made ProductCard smaller with reduced padding (p-3 -> p-2), smaller icons (w-5 h-5), smaller text
+- Made ProductDialog more compact with smaller inputs (h-9), smaller labels (text-[10px])
+- Made CategoryDialog more compact with smaller buttons and inputs
+- Fixed product image disappearing when editing by ensuring imageUrl is preserved in useEffect
+- Optimized Framer Motion animations by removing redundant motion.div wrappers
+- Made all popups use sr-only for titles to reduce visual clutter
+
+Stage Summary:
+- All dialogs are now more compact and mobile-friendly
+- Settings dialog no longer has laggy animations
+- Product cards take less space on screen
+- Product images are preserved when editing products
+- All UI elements have consistent sizing
+
+---
+Task ID: 12
+Agent: Main Agent
+Task: Configure persistent database storage to survive deployments
+
+Work Log:
+- Created persistent data directory at /home/z/.dispensa-data/
+- Moved database location from /home/z/my-project/db/custom.db to /home/z/.dispensa-data/dispensa.db
+- Updated src/lib/db.ts to force DATABASE_URL to persistent path before Prisma initializes
+- Updated .env file to point to persistent database location
+- Updated prisma/seed.ts to use persistent database path
+- Added db:init script to package.json that creates directory, pushes schema, and seeds data
+- Modified postinstall script to automatically run db:init on every install
+
+Stage Summary:
+- Database now persists between deployments at /home/z/.dispensa-data/dispensa.db
+- On fresh deployment, postinstall automatically initializes the database with categories and stores
+- Data (users, lists, products) survives project redeployment
+- Categories: 18, Stores: 13 seeded by default
+
+---
+Task ID: 13
+Agent: Main Agent
+Task: Setup Android app with Capacitor for Play Store
+
+Work Log:
+- Installed Capacitor core, CLI, and Android platform
+- Installed Capacitor plugins: Camera, Preferences
+- Created capacitor.config.ts with app configuration (com.dispensa.app)
+- Added Android platform with `cap add android`
+- Created public/manifest.json for PWA support
+- Updated layout.tsx with PWA meta tags and theme color
+- Created public/icons/icon.svg app icon
+- Created src/lib/api-config.ts for mobile API configuration
+- Added mobile:* scripts to package.json for build and sync
+- Modified next.config.ts to support both standalone (web) and export (mobile) builds
+- Added camera and storage permissions to AndroidManifest.xml
+- Created .env.example with NEXT_PUBLIC_API_URL configuration
+- Created ANDROID_BUILD.md with complete build instructions
+
+Stage Summary:
+- Android project created at /android folder
+- App ID: com.dispensa.app
+- PWA configured and working
+- Ready for Play Store after:
+  1. Deploy backend to production (Vercel/Railway)
+  2. Set NEXT_PUBLIC_API_URL in .env
+  3. Run `bun run mobile:build`
+  4. Open Android Studio with `bun run mobile:open`
+  5. Generate signed AAB for Play Store

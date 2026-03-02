@@ -1,8 +1,17 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
-  /* config options here */
+  // Per Capacitor/Android, usa export statico
+  // Per deployment web, usa standalone
+  output: process.env.BUILD_MOBILE ? "export" : "standalone",
+
+  // Configurazioni per export statico
+  images: {
+    unoptimized: true, // Necessario per export statico
+  },
+
+  trailingSlash: true, // Necessario per routing statico
+
   typescript: {
     ignoreBuildErrors: true,
   },

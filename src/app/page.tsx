@@ -472,7 +472,7 @@ function CreateGroupDialog({
   )
 }
 
-// Settings Dialog - Simplified
+// Settings Dialog - Optimized
 function SettingsDialog({
   open,
   onOpenChange,
@@ -484,53 +484,40 @@ function SettingsDialog({
   settings: UserSettings | null
   onUpdateSettings: (updates: Partial<UserSettings>) => Promise<void>
 }) {
-  const [localSettings, setLocalSettings] = useState<Partial<UserSettings>>({})
-  const [saving, setSaving] = useState(false)
-
-  // Load settings when dialog opens
-  useEffect(() => {
-    if (open && settings) {
-      setLocalSettings(settings)
-    }
-  }, [settings, open])
+  // Use settings directly as local state, with fallback defaults
+  const getSetting = <K extends keyof UserSettings>(key: K, defaultValue: UserSettings[K]): UserSettings[K] => {
+    return settings?.[key] ?? defaultValue
+  }
 
   // Update setting with immediate save
-  const updateSetting = async (key: keyof UserSettings, value: string | boolean) => {
-    setLocalSettings(prev => ({ ...prev, [key]: value }))
-    setSaving(true)
+  const updateSetting = useCallback(async (key: keyof UserSettings, value: string | boolean) => {
     try {
       await onUpdateSettings({ [key]: value })
     } catch {
       toast.error('Errore durante il salvataggio')
-    } finally {
-      setSaving(false)
     }
-  }
+  }, [onUpdateSettings])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="rounded-2xl max-w-sm max-h-[80vh] overflow-y-auto"
+        className="rounded-2xl max-w-[360px] max-h-[90vh] overflow-y-auto p-5"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <DialogHeader className="pb-2">
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <SettingsIcon className="w-4 h-4" />
-            Impostazioni
-            {saving && <span className="text-xs text-muted-foreground ml-auto">Salvataggio...</span>}
-          </DialogTitle>
+        <DialogHeader className="pb-3">
+          <DialogTitle className="text-base font-medium">Impostazioni</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           {/* Theme */}
           <div className="space-y-2">
-            <Label className="text-sm">Tema</Label>
+            <Label className="text-sm font-medium">Tema</Label>
             <div className="grid grid-cols-3 gap-2">
               {(['light', 'dark', 'system'] as const).map((theme) => (
                 <Button
                   key={theme}
-                  variant={localSettings.theme === theme ? 'default' : 'outline'}
+                  variant={getSetting('theme', 'light') === theme ? 'default' : 'outline'}
                   size="sm"
-                  className="rounded-lg text-xs"
+                  className="rounded-lg text-xs h-9"
                   onClick={() => updateSetting('theme', theme)}
                 >
                   {theme === 'light' ? 'Chiaro' : theme === 'dark' ? 'Scuro' : 'Sistema'}
@@ -541,13 +528,13 @@ function SettingsDialog({
 
           {/* Primary Color */}
           <div className="space-y-2">
-            <Label className="text-sm">Colore</Label>
+            <Label className="text-sm font-medium">Colore</Label>
             <div className="flex gap-2 flex-wrap">
               {Object.entries(themeColors).map(([key, color]) => (
                 <button
                   key={key}
-                  className={`w-8 h-8 rounded-lg transition-all ${
-                    localSettings.primaryColor === key ? 'ring-2 ring-offset-1 ring-primary scale-110' : 'hover:scale-105'
+                  className={`w-8 h-8 rounded-lg ${
+                    getSetting('primaryColor', 'mint') === key ? 'ring-2 ring-offset-1 ring-primary' : ''
                   }`}
                   style={{ backgroundColor: color.primary }}
                   onClick={() => updateSetting('primaryColor', key)}
@@ -559,31 +546,31 @@ function SettingsDialog({
 
           {/* Toggles */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between py-1">
               <Label className="text-sm">Modalità Compatta</Label>
               <Switch
-                checked={localSettings.compactMode || false}
+                checked={getSetting('compactMode', false)}
                 onCheckedChange={(checked) => updateSetting('compactMode', checked)}
               />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between py-1">
               <Label className="text-sm">Mostra Prezzi</Label>
               <Switch
-                checked={localSettings.showPrices ?? true}
+                checked={getSetting('showPrices', true)}
                 onCheckedChange={(checked) => updateSetting('showPrices', checked)}
               />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between py-1">
               <Label className="text-sm">Mostra Immagini</Label>
               <Switch
-                checked={localSettings.showImages || false}
+                checked={getSetting('showImages', false)}
                 onCheckedChange={(checked) => updateSetting('showImages', checked)}
               />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between py-1">
               <Label className="text-sm">Notifiche</Label>
               <Switch
-                checked={localSettings.notifications ?? true}
+                checked={getSetting('notifications', true)}
                 onCheckedChange={(checked) => updateSetting('notifications', checked)}
               />
             </div>
@@ -591,8 +578,8 @@ function SettingsDialog({
 
           {/* Currency & Language */}
           <div className="grid grid-cols-2 gap-2">
-            <Select value={localSettings.currency || 'EUR'} onValueChange={(v) => updateSetting('currency', v)}>
-              <SelectTrigger className="rounded-lg h-9">
+            <Select value={getSetting('currency', 'EUR')} onValueChange={(v) => updateSetting('currency', v)}>
+              <SelectTrigger className="rounded-lg h-9 text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -601,8 +588,8 @@ function SettingsDialog({
                 <SelectItem value="GBP">£ GBP</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={localSettings.language || 'it'} onValueChange={(v) => updateSetting('language', v)}>
-              <SelectTrigger className="rounded-lg h-9">
+            <Select value={getSetting('language', 'it')} onValueChange={(v) => updateSetting('language', v)}>
+              <SelectTrigger className="rounded-lg h-9 text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -753,11 +740,11 @@ function ProductCard({
             isCompleted ? 'opacity-70 bg-muted/50' : 'bg-card'
           }`}
         >
-          <CardContent className={`${compactMode ? 'p-3' : 'p-4'}`}>
-            <div className="flex items-center gap-3">
+          <CardContent className={`${compactMode ? 'p-2' : 'p-3'}`}>
+            <div className="flex items-center gap-2">
               {/* Product Image */}
               {showImages && product.imageUrl && (
-                <div className="w-14 h-14 rounded-xl overflow-hidden bg-muted flex-shrink-0">
+                <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted flex-shrink-0">
                   <img 
                     src={product.imageUrl} 
                     alt={product.name}
@@ -773,54 +760,46 @@ function ProductCard({
                   e.stopPropagation()
                   onToggleStatus()
                 }}
-                className="p-2 -m-2 touch-manipulation"
+                className="p-1.5 -m-1.5 touch-manipulation"
               >
                 {isCompleted ? (
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-                  >
-                    <CheckCircle2 className="w-6 h-6 text-primary" />
-                  </motion.div>
+                  <CheckCircle2 className="w-5 h-5 text-primary" />
                 ) : (
-                  <Circle className="w-6 h-6 text-muted-foreground/50" />
+                  <Circle className="w-5 h-5 text-muted-foreground/50" />
                 )}
               </motion.button>
               
               <div className="flex-1 min-w-0">
-                <h3 className={`font-medium truncate ${isCompleted ? 'line-through text-muted-foreground' : ''} ${compactMode ? 'text-sm' : 'text-base'}`}>
+                <h3 className={`font-medium truncate ${isCompleted ? 'line-through text-muted-foreground' : ''} text-sm`}>
                   {product.name}
                 </h3>
                 
-                {!compactMode && (
-                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                    {product.category && (
-                      <Badge variant="secondary" className="rounded-md text-xs px-2 py-0.5">
-                        <span>{product.category.icon || categoryIconMap[product.category.name] || '📦'}</span>
-                        <span className="ml-1">{product.category.name}</span>
-                      </Badge>
-                    )}
-                    {product.quantity > 1 && (
-                      <Badge variant="outline" className="rounded-md text-xs px-2 py-0.5 font-medium">
-                        ×{product.quantity}
-                      </Badge>
-                    )}
-                  </div>
-                )}
+                <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                  {product.category && (
+                    <Badge variant="secondary" className="rounded-md text-[10px] px-1.5 py-0 h-4">
+                      <span>{product.category.icon || '📦'}</span>
+                      <span className="ml-0.5">{product.category.name}</span>
+                    </Badge>
+                  )}
+                  {product.quantity > 1 && (
+                    <Badge variant="outline" className="rounded-md text-[10px] px-1.5 py-0 h-4 font-medium">
+                      ×{product.quantity}
+                    </Badge>
+                  )}
+                </div>
                 
                 {showPrices && product.price && (
-                  <p className={`text-primary font-medium mt-1 ${compactMode ? 'text-xs' : 'text-sm'}`}>
+                  <p className="text-primary font-medium text-xs mt-0.5">
                     {currencySymbol}{(product.price * product.quantity).toFixed(2)}
-                    {!compactMode && product.weight && (
-                      <span className="text-muted-foreground font-normal"> • {product.weight}</span>
+                    {product.weight && (
+                      <span className="text-muted-foreground font-normal ml-1">• {product.weight}</span>
                     )}
                   </p>
                 )}
               </div>
 
               {/* Quick edit indicator */}
-              <ChevronDown className="w-4 h-4 text-muted-foreground/30 -rotate-90" />
+              <ChevronDown className="w-3 h-3 text-muted-foreground/30 -rotate-90" />
             </div>
           </CardContent>
         </Card>
@@ -863,25 +842,29 @@ function ProductDialog({
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Initialize form when product changes or dialog opens
   useEffect(() => {
-    if (product) {
-      setName(product.name)
-      setCategoryId(product.categoryId || null)
-      setSelectedListId(product.listId || currentListId)
-      setPrice(product.price?.toString() || '')
-      setWeight(product.weight || '')
-      setQuantity(product.quantity.toString())
-      setImageUrl(product.imageUrl || '')
-      setNotes(product.notes || '')
-    } else {
-      setName('')
-      setCategoryId(null)
-      setSelectedListId(currentListId)
-      setPrice('')
-      setWeight('')
-      setQuantity('1')
-      setImageUrl('')
-      setNotes('')
+    if (open) {
+      if (product) {
+        setName(product.name)
+        setCategoryId(product.categoryId || null)
+        setSelectedListId(product.listId || currentListId)
+        setPrice(product.price?.toString() || '')
+        setWeight(product.weight || '')
+        setQuantity(product.quantity?.toString() || '1')
+        // Preserve the imageUrl - critical fix
+        setImageUrl(product.imageUrl || '')
+        setNotes(product.notes || '')
+      } else {
+        setName('')
+        setCategoryId(null)
+        setSelectedListId(currentListId)
+        setPrice('')
+        setWeight('')
+        setQuantity('1')
+        setImageUrl('')
+        setNotes('')
+      }
     }
   }, [product, open, currentListId])
 
@@ -965,24 +948,24 @@ function ProductDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="rounded-2xl max-w-sm max-h-[80vh] overflow-y-auto p-4"
+        className="rounded-2xl max-w-[360px] max-h-[90vh] overflow-y-auto p-4"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <DialogHeader className="pb-2">
-          <DialogTitle className="text-base font-semibold">
-            {product ? '✏️ Modifica' : '➕ Aggiungi'}
+        <DialogHeader className="pb-2 sr-only">
+          <DialogTitle className="text-sm font-medium">
+            {product ? 'Modifica Prodotto' : 'Nuovo Prodotto'}
           </DialogTitle>
         </DialogHeader>
         
         <div className="space-y-3">
           {/* Name input */}
           <div className="space-y-1">
-            <Label className="text-xs">Nome *</Label>
+            <Label className="text-xs text-muted-foreground">Nome *</Label>
             <Input
               placeholder="es. Latte intero"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="h-10 rounded-lg"
+              className="h-10 rounded-lg text-sm"
             />
           </div>
 
@@ -990,26 +973,26 @@ function ProductDialog({
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Label className="text-xs">Categoria</Label>
+                <Label className="text-xs text-muted-foreground">Categoria</Label>
                 {onCreateCategory && (
                   <button
                     type="button"
                     onClick={onCreateCategory}
-                    className="text-xs text-primary hover:underline"
+                    className="text-[10px] text-primary hover:underline"
                   >
-                    + Nuova
+                    +Nuova
                   </button>
                 )}
               </div>
               <Select value={categoryId || "none"} onValueChange={(v) => setCategoryId(v === "none" ? null : v)}>
-                <SelectTrigger className="h-10 rounded-lg">
+                <SelectTrigger className="h-10 rounded-lg text-xs">
                   <SelectValue placeholder="Nessuna" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Nessuna</SelectItem>
                   {categories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1 text-xs">
                         <span>{cat.icon || '📦'}</span>
                         <span>{cat.name}</span>
                       </span>
@@ -1019,10 +1002,10 @@ function ProductDialog({
               </Select>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs">Lista</Label>
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">Lista</Label>
               <Select value={selectedListId || currentListId} onValueChange={setSelectedListId}>
-                <SelectTrigger className="h-10 rounded-lg">
+                <SelectTrigger className="h-9 rounded-lg text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1030,7 +1013,7 @@ function ProductDialog({
                     const listColor = themeColors[list.color || 'mint']
                     return (
                       <SelectItem key={list.id} value={list.id}>
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-1 text-xs">
                           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: listColor.primary }} />
                           {list.name}
                         </span>
@@ -1044,41 +1027,41 @@ function ProductDialog({
 
           {/* Quantity, Price, Weight row */}
           <div className="grid grid-cols-3 gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Q.tà</Label>
-              <Input type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="h-10 rounded-lg text-center" />
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">Q.tà</Label>
+              <Input type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="h-9 rounded-lg text-center text-xs" />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Prezzo €</Label>
-              <Input type="number" step="0.01" placeholder="0.00" value={price} onChange={(e) => setPrice(e.target.value)} className="h-10 rounded-lg" />
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">Prezzo €</Label>
+              <Input type="number" step="0.01" placeholder="0" value={price} onChange={(e) => setPrice(e.target.value)} className="h-9 rounded-lg text-xs" />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Peso</Label>
-              <Input placeholder="1L" value={weight} onChange={(e) => setWeight(e.target.value)} className="h-10 rounded-lg" />
+            <div className="space-y-0.5">
+              <Label className="text-[10px] text-muted-foreground">Peso</Label>
+              <Input placeholder="1L" value={weight} onChange={(e) => setWeight(e.target.value)} className="h-9 rounded-lg text-xs" />
             </div>
           </div>
 
           {/* Image Upload - Compact */}
-          <div className="space-y-1">
-            <Label className="text-xs">Immagine</Label>
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">Immagine</Label>
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
             {imageUrl ? (
-              <div className="relative h-16 rounded-lg overflow-hidden bg-muted">
+              <div className="relative h-12 rounded-lg overflow-hidden bg-muted">
                 <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
-                <button type="button" onClick={() => setImageUrl('')} className="absolute top-1 right-1 p-1 bg-black/50 rounded-full text-white">
+                <button type="button" onClick={() => setImageUrl('')} className="absolute top-0.5 right-0.5 p-0.5 bg-black/50 rounded-full text-white">
                   <X className="w-3 h-3" />
                 </button>
               </div>
             ) : (
               <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} 
-                className="w-full h-10 rounded-lg border border-dashed border-muted-foreground/30 hover:border-primary flex items-center justify-center gap-2 text-muted-foreground text-sm">
+                className="w-full h-9 rounded-lg border border-dashed border-muted-foreground/30 hover:border-primary flex items-center justify-center gap-1 text-muted-foreground text-xs">
                 {uploading ? (
                   <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                    className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full" />
+                    className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full" />
                 ) : (
                   <>
-                    <Plus className="w-4 h-4" />
-                    <span>Aggiungi</span>
+                    <Plus className="w-3 h-3" />
+                    <span>Aggiungi immagine</span>
                   </>
                 )}
               </button>
@@ -1086,11 +1069,11 @@ function ProductDialog({
           </div>
 
           {/* Action buttons */}
-          <div className="flex gap-2 pt-2">
-            <Button variant="outline" className="flex-1 h-10 rounded-lg" onClick={() => onOpenChange(false)}>Annulla</Button>
-            <Button className="flex-1 h-10 rounded-lg" onClick={handleSave} disabled={loading}>
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" size="sm" className="flex-1 h-9 rounded-lg text-xs" onClick={() => onOpenChange(false)}>Annulla</Button>
+            <Button size="sm" className="flex-1 h-9 rounded-lg text-xs" onClick={handleSave} disabled={loading}>
               {loading ? <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                className="w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> : (product ? 'Salva' : 'Aggiungi')}
+                className="w-3 h-3 border-2 border-white border-t-transparent rounded-full" /> : (product ? 'Salva' : 'Aggiungi')}
             </Button>
           </div>
         </div>
@@ -1184,7 +1167,7 @@ function CreateListDialog({
   )
 }
 
-// Create Category Dialog
+// Create Category Dialog - Compact
 function CategoryDialog({
   open,
   onOpenChange,
@@ -1199,7 +1182,7 @@ function CategoryDialog({
   const [color, setColor] = useState('#64748b')
   const [loading, setLoading] = useState(false)
 
-  const emojiOptions = ['📦', '🥬', '🥛', '🥩', '🐟', '🍝', '🍞', '🫒', '🥤', '🍪', '🧊', '🧹', '🧴', '🍼', '🐕', '🧀', '🥚', '🥔', '🍅', '🥕', '🍎', '🍊', '🍌', '🍇', '🍷', '☕', '🧁', '🍫', '🧻', '🧴', '💊']
+  const emojiOptions = ['📦', '🥬', '🥛', '🥩', '🐟', '🍝', '🍞', '🫒', '🥤', '🍪', '🧊', '🧹', '🧴', '🍼', '🐕', '🧀', '🥚', '🥔', '🍅', '🥕', '🍎', '🍊', '🍌', '🍇', '🍷', '☕', '🧁', '🍫', '🧻', '💊']
   const colorOptions = ['#22c55e', '#3b82f6', '#ef4444', '#06b6d4', '#f59e0b', '#d97706', '#84cc16', '#8b5cf6', '#ec4899', '#0ea5e9', '#14b8a6', '#f472b6', '#fb923c', '#a78bfa', '#64748b']
 
   const handleCreate = async () => {
@@ -1224,25 +1207,25 @@ function CategoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-2xl max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Nuova Categoria</DialogTitle>
+      <DialogContent className="rounded-2xl max-w-[300px] p-3">
+        <DialogHeader className="pb-1 sr-only">
+          <DialogTitle className="text-sm">Nuova Categoria</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Nome</Label>
-            <Input placeholder="es. Snack" value={name} onChange={(e) => setName(e.target.value)} className="h-10 rounded-lg" />
+        <div className="space-y-2">
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">Nome</Label>
+            <Input placeholder="es. Snack" value={name} onChange={(e) => setName(e.target.value)} className="h-8 rounded-lg text-xs" />
           </div>
 
-          <div className="space-y-2">
-            <Label>Icona</Label>
-            <div className="flex flex-wrap gap-1.5">
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">Icona</Label>
+            <div className="flex flex-wrap gap-1">
               {emojiOptions.map((e) => (
                 <button
                   key={e}
                   type="button"
                   onClick={() => setIcon(e)}
-                  className={`w-9 h-9 rounded-lg text-lg flex items-center justify-center transition-all ${icon === e ? 'bg-primary/20 ring-2 ring-primary' : 'bg-muted hover:bg-muted/80'}`}
+                  className={`w-7 h-7 rounded-lg text-sm flex items-center justify-center ${icon === e ? 'bg-primary/20 ring-1 ring-primary' : 'bg-muted hover:bg-muted/80'}`}
                 >
                   {e}
                 </button>
@@ -1250,25 +1233,25 @@ function CategoryDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Colore</Label>
-            <div className="flex flex-wrap gap-1.5">
+          <div className="space-y-0.5">
+            <Label className="text-[10px] text-muted-foreground">Colore</Label>
+            <div className="flex flex-wrap gap-1">
               {colorOptions.map((c) => (
                 <button
                   key={c}
                   type="button"
                   onClick={() => setColor(c)}
-                  className={`w-8 h-8 rounded-lg transition-all ${color === c ? 'ring-2 ring-offset-1 ring-primary scale-110' : 'hover:scale-105'}`}
+                  className={`w-6 h-6 rounded-lg ${color === c ? 'ring-1 ring-offset-1 ring-primary' : ''}`}
                   style={{ backgroundColor: c }}
                 />
               ))}
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1 rounded-lg" onClick={() => onOpenChange(false)}>Annulla</Button>
-            <Button className="flex-1 rounded-lg" onClick={handleCreate} disabled={loading}>
-              {loading ? 'Creazione...' : 'Crea'}
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" size="sm" className="flex-1 h-8 rounded-lg text-xs" onClick={() => onOpenChange(false)}>Annulla</Button>
+            <Button size="sm" className="flex-1 h-8 rounded-lg text-xs" onClick={handleCreate} disabled={loading}>
+              {loading ? '...' : 'Crea'}
             </Button>
           </div>
         </div>
@@ -1735,6 +1718,17 @@ function Dashboard({
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-muted/30 to-background">
+      {/* Initial Loading Overlay */}
+      {loading && lists.length === 0 && (
+        <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+            className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full"
+          />
+        </div>
+      )}
+      
       {/* Header */}
       <header className="sticky top-0 z-50 glass border-b">
         <div className="container max-w-2xl mx-auto px-4 py-3">
@@ -1995,7 +1989,7 @@ function Dashboard({
       </main>
 
       {/* Floating Action Button */}
-      {currentList && (
+      {currentList && !loading && lists.length > 0 && (
         <motion.div
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -2109,22 +2103,19 @@ export default function App() {
     }
   }, [settings])
 
-  // Check for existing session
+  // Check for hydration
+  const _hasHydrated = useAuthStore((state) => state._hasHydrated)
+
+  // Show loading until hydrated
   useEffect(() => {
-    const stored = localStorage.getItem('auth-storage')
-    if (stored) {
-      try {
-        const { state } = JSON.parse(stored)
-        if (state?.user) {
-          setLoading(false)
-        }
-      } catch {
+    // If hydration is taking too long, force loading to false
+    const timer = setTimeout(() => {
+      if (isLoading) {
         setLoading(false)
       }
-    } else {
-      setLoading(false)
-    }
-  }, [setLoading])
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [isLoading, setLoading])
 
   // Fetch groups and settings when authenticated
   useEffect(() => {

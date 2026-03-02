@@ -1,6 +1,10 @@
 import { PrismaClient } from '@prisma/client'
 import { DEFAULT_CATEGORIES, DEFAULT_STORES } from '../src/lib/constants'
 
+// Set DATABASE_URL to persistent location before Prisma initializes
+const persistentDbPath = '/home/z/.dispensa-data/dispensa.db'
+process.env.DATABASE_URL = `file:${persistentDbPath}`
+
 const prisma = new PrismaClient()
 
 async function main() {
