@@ -13,14 +13,19 @@ if (!tursoToken) {
   throw new Error('TURSO_AUTH_TOKEN is required')
 }
 
-console.log('[DB] Connecting to Turso:', tursoUrl.substring(0, 40) + '...')
+// Log only in development
+if (process.env.NODE_ENV !== 'production') {
+  console.log('[DB] Connecting to Turso:', tursoUrl.substring(0, 40) + '...')
+}
 
 const client = createClient({
   url: tursoUrl,
   authToken: tursoToken,
 })
 
-console.log('[DB] Connected successfully')
+if (process.env.NODE_ENV !== 'production') {
+  console.log('[DB] Connected successfully')
+}
 
 // Helper per query con risultati tipizzati
 export async function query<T = unknown>(sql: string, args: (string | number | null)[] = []): Promise<T[]> {
@@ -28,7 +33,8 @@ export async function query<T = unknown>(sql: string, args: (string | number | n
     const result = await client.execute({ sql, args })
     return result.rows as T[]
   } catch (error) {
-    console.error('[DB] Query error:', sql, error)
+    // Always log errors, but in a structured way
+    console.error('[DB] Query error:', { sql: sql.substring(0, 100), error })
     throw error
   }
 }
@@ -42,7 +48,7 @@ export async function execute(sql: string, args: (string | number | null)[] = []
       rowsAffected: result.rowsAffected
     }
   } catch (error) {
-    console.error('[DB] Execute error:', sql, error)
+    console.error('[DB] Execute error:', { sql: sql.substring(0, 100), error })
     throw error
   }
 }

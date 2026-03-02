@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { query, execute } from '@/lib/db-turso'
+
+interface FamilyGroup {
+  id: string
+  name: string
+  inviteCode: string
+  ownerId: string
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,47 +22,44 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { groupId } = body
 
-    if (!groupId) {
+    if (!groupId || typeof groupId !== 'string') {
       return NextResponse.json(
         { error: 'ID gruppo obbligatorio' },
         { status: 400 }
       )
     }
 
-    const group = await db.familyGroup.findUnique({
-      where: { id: groupId },
-      include: { members: true },
-    })
+    // Get group
+    const groups = await query<FamilyGroup>(
+      'SELECT * FROM FamilyGroup WHERE id = ?',
+      [groupId]
+    )
 
-    if (!group) {
+    if (groups.length === 0) {
       return NextResponse.json(
         { error: 'Gruppo non trovato' },
         { status: 404 }
       )
     }
 
+    const group = groups[0]
+
     // Check if user is the owner
     if (group.ownerId === userId) {
-      // If owner leaves, delete the group
-      await db.familyGroup.delete({
-        where: { id: groupId },
-      })
+      // If owner leaves, delete the group (cascade will delete members, lists, products)
+      await execute('DELETE FROM FamilyGroup WHERE id = ?', [groupId])
       return NextResponse.json({ success: true, deleted: true })
     }
 
     // Remove user from group
-    await db.familyMember.delete({
-      where: {
-        userId_groupId: {
-          userId,
-          groupId,
-        },
-      },
-    })
+    await execute(
+      'DELETE FROM FamilyMember WHERE userId = ? AND groupId = ?',
+      [userId, groupId]
+    )
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Leave group error:', error)
+    console.error('[API] Leave group error:', error)
     return NextResponse.json(
       { error: 'Errore durante l\'uscita dal gruppo' },
       { status: 500 }
