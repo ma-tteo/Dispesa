@@ -56,27 +56,34 @@ const categoryIconMap: Record<string, string> = {
 const api = async (url: string, options: RequestInit = {}, userId?: string) => {
   // Add trailing slash only for paths without query parameters to avoid 308 redirect
   const normalizedUrl = url.includes('?') ? url : (url.endsWith('/') ? url : `${url}/`)
-  
+
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...(userId && { 'x-user-id': userId }),
     ...options.headers,
   }
-  
-  const res = await fetch(normalizedUrl, { ...options, headers })
-  
+
+  let res: Response
+  try {
+    res = await fetch(normalizedUrl, { ...options, headers })
+  } catch (networkError) {
+    // Handle network errors (connection refused, timeout, etc.)
+    console.error('Network error:', networkError)
+    throw new Error('Impossibile connettersi al server. Riprova tra poco.')
+  }
+
   // Try to parse JSON, but handle non-JSON responses gracefully
   let data: Record<string, unknown>
   try {
     data = await res.json()
   } catch {
-    throw new Error(`Errore del server (${res.status})`)
+    throw new Error(`Errore nella risposta del server (${res.status})`)
   }
-  
+
   if (!res.ok) {
     throw new Error((data.error as string) || 'Errore del server')
   }
-  
+
   return data
 }
 
@@ -2158,11 +2165,15 @@ export default function App() {
           }
         } catch (error) {
           console.error('Error fetching data:', error)
+          // If unauthorized, clear the session
+          if (error instanceof Error && error.message.includes('autorizzato')) {
+            logout()
+          }
         }
       }
       fetchData()
     }
-  }, [user, setSettings, setSettingsStore])
+  }, [user, setSettings, setSettingsStore, logout])
 
   const handleCreateGroup = async (name: string) => {
     const { group } = await api('/api/groups', {
