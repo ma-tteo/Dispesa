@@ -1445,7 +1445,6 @@ function Dashboard({
   onLogout,
   onOpenSettings,
   settings,
-  onReady,
 }: {
   user: UserType
   group: FamilyGroup
@@ -1453,7 +1452,6 @@ function Dashboard({
   onLogout: () => void
   onOpenSettings: () => void
   settings: UserSettings | null
-  onReady?: () => void
 }) {
   const [products, setProducts] = useState<Product[]>([])
   const [lists, setLists] = useState<List[]>([])
@@ -1613,12 +1611,11 @@ function Dashboard({
         console.error('Error loading initial data:', error)
       } finally {
         setLoading(false)
-        onReady?.()
       }
     }
 
     loadInitialData()
-  }, [group.id, user.id, onReady])
+  }, [group.id, user.id])
 
   // Fetch lists when needed (after creation)
   useEffect(() => {
@@ -2159,12 +2156,6 @@ export default function App() {
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [isFetchingData, setIsFetchingData] = useState(false)
-  const [dashboardReady, setDashboardReady] = useState(false)
-
-  // Reset dashboard ready when group changes
-  useEffect(() => {
-    setDashboardReady(false)
-  }, [currentGroup?.id])
 
   // Apply theme when settings change
   useEffect(() => {
@@ -2295,8 +2286,8 @@ export default function App() {
     return <AuthView onAuth={setUser} />
   }
 
-  // Show loading while fetching user data or dashboard is loading
-  if (isFetchingData || !dashboardReady) {
+  // Show loading while fetching user data
+  if (isFetchingData) {
     return <LoadingScreen />
   }
 
@@ -2336,7 +2327,6 @@ export default function App() {
         onLogout={handleLogout}
         onOpenSettings={() => setShowSettings(true)}
         settings={settings}
-        onReady={() => setDashboardReady(true)}
       />
       <SettingsDialog
         open={showSettings}
