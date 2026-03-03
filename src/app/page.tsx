@@ -1445,6 +1445,7 @@ function Dashboard({
   onLogout,
   onOpenSettings,
   settings,
+  onReady,
 }: {
   user: UserType
   group: FamilyGroup
@@ -1452,6 +1453,7 @@ function Dashboard({
   onLogout: () => void
   onOpenSettings: () => void
   settings: UserSettings | null
+  onReady?: () => void
 }) {
   const [products, setProducts] = useState<Product[]>([])
   const [lists, setLists] = useState<List[]>([])
@@ -1471,6 +1473,7 @@ function Dashboard({
   const [showSuggestions, setShowSuggestions] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const listTabsRef = useRef<HTMLDivElement>(null)
+  const initialLoadDone = useRef(false)
 
   // Generate product suggestions based on search
   useEffect(() => {
@@ -1577,21 +1580,56 @@ function Dashboard({
     }
   }, [currentList, user.id, filterStatus, filterCategory, search])
 
+  // Initial data load - fetch everything at once
+  useEffect(() => {
+    if (initialLoadDone.current) return
+    initialLoadDone.current = true
+
+    const loadInitialData = async () => {
+      try {
+        // Fetch lists and categories in parallel
+        const [listsRes, categoriesRes] = await Promise.all([
+          api(`/api/lists?groupId=${group.id}`, {}, user.id),
+          api('/api/categories/', {}, user.id)
+        ])
+
+        setLists(listsRes.lists)
+        setCategories(categoriesRes.categories)
+
+        // Set current list
+        if (listsRes.lists.length > 0) {
+          const firstList = listsRes.lists[0]
+          setCurrentList(firstList)
+
+          // Now fetch products for this list
+          const { products: fetchedProducts } = await api(
+            `/api/products?listId=${firstList.id}`,
+            {},
+            user.id
+          )
+          setProducts(fetchedProducts)
+        }
+      } catch (error) {
+        console.error('Error loading initial data:', error)
+      } finally {
+        setLoading(false)
+        onReady?.()
+      }
+    }
+
+    loadInitialData()
+  }, [group.id, user.id, onReady])
+
+  // Fetch lists when needed (after creation)
   useEffect(() => {
     fetchLists()
   }, [fetchLists])
 
+  // Fetch products when filters change (not on initial load)
   useEffect(() => {
+    if (!initialLoadDone.current) return
     fetchProducts()
   }, [fetchProducts])
-
-  useEffect(() => {
-    const fetchCategories = async () => {
-      const { categories } = await api('/api/categories', {}, user.id)
-      setCategories(categories)
-    }
-    fetchCategories()
-  }, [user.id])
 
   const handleToggleStatus = async (product: Product) => {
     try {
@@ -1754,17 +1792,6 @@ function Dashboard({
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-muted/30 to-background">
-      {/* Initial Loading Overlay */}
-      {loading && lists.length === 0 && (
-        <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm flex items-center justify-center">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-            className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full"
-          />
-        </div>
-      )}
-      
       {/* Header */}
       <header className="sticky top-0 z-50 glass border-b">
         <div className="container max-w-2xl mx-auto px-4 py-3">
@@ -2132,6 +2159,12 @@ export default function App() {
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [isFetchingData, setIsFetchingData] = useState(false)
+  const [dashboardReady, setDashboardReady] = useState(false)
+
+  // Reset dashboard ready when group changes
+  useEffect(() => {
+    setDashboardReady(false)
+  }, [currentGroup?.id])
 
   // Apply theme when settings change
   useEffect(() => {
@@ -2262,8 +2295,8 @@ export default function App() {
     return <AuthView onAuth={setUser} />
   }
 
-  // Show loading while fetching user data
-  if (isFetchingData) {
+  // Show loading while fetching user data or dashboard is loading
+  if (isFetchingData || !dashboardReady) {
     return <LoadingScreen />
   }
 
@@ -2303,6 +2336,7 @@ export default function App() {
         onLogout={handleLogout}
         onOpenSettings={() => setShowSettings(true)}
         settings={settings}
+        onReady={() => setDashboardReady(true)}
       />
       <SettingsDialog
         open={showSettings}
