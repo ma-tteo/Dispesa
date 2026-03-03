@@ -1,11 +1,19 @@
 // App version - update this with each release
-export const APP_VERSION = 'alpha-v1.0.7'
+export const APP_VERSION = 'alpha-v1.0.8'
 export const APP_NAME = 'Dispensa'
 export const APP_TAGLINE = 'La tua spesa, organizzata'
 export const APP_AUTHOR = 'Dispensa Team'
 
 // Version history for changelog
 export const VERSION_HISTORY = [
+  {
+    version: 'alpha-v1.0.8',
+    date: '2025-01-15',
+    changes: [
+      'Fix configurazione database Turso per Vercel',
+      'Schema Prisma ora usa DATABASE_URL env variable',
+    ],
+  },
   {
     version: 'alpha-v1.0.7',
     date: '2025-01-15',
