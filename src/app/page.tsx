@@ -137,33 +137,20 @@ function applyThemeToDocument(settings: UserSettings | null) {
   root.classList.toggle('compact-mode', settings?.compactMode || false)
 }
 
-// Loading Screen Component
+// Loading Screen Component - Performance optimized with CSS
 function LoadingScreen() {
   return (
     <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background">
-      <motion.div
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 200, delay: 0.1 }}
-        className="flex flex-col items-center gap-6"
-      >
-        <motion.div
-          className="p-5 rounded-full bg-primary/10"
-          animate={{ scale: [1, 1.05, 1] }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-        >
+      <div className="flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-300">
+        <div className="p-5 rounded-full bg-primary/10 animate-pulse">
           <ShoppingCart className="w-12 h-12 text-primary" />
-        </motion.div>
+        </div>
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-1">{APP_NAME}</h1>
           <p className="text-sm text-muted-foreground">{APP_TAGLINE}</p>
         </div>
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full"
-        />
-      </motion.div>
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
     </div>
   )
 }
@@ -280,11 +267,7 @@ function AuthView({ onAuth }: { onAuth: (user: UserType) => void }) {
                   disabled={loading}
                 >
                   {loading ? (
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                      className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
-                    />
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : (
                     isLogin ? 'Accedi' : 'Registrati'
                   )}
@@ -662,7 +645,7 @@ function SettingsDialog({
   )
 }
 
-// Product Card Component - Mobile Optimized
+// Product Card Component - Mobile Optimized (Performance optimized)
 function ProductCard({
   product,
   onToggleStatus,
@@ -683,92 +666,80 @@ function ProductCard({
   currency?: string
 }) {
   const [swipeX, setSwipeX] = useState(0)
-  const [startX, setStartX] = useState(0)
-  const [isDragging, setIsDragging] = useState(false)
-  const [isPressed, setIsPressed] = useState(false)
+  const startXRef = useRef(0)
+  const isDraggingRef = useRef(false)
+  const hasMovedRef = useRef(false)
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    setStartX(e.touches[0].clientX)
-    setIsDragging(true)
-    setIsPressed(true)
+    startXRef.current = e.touches[0].clientX
+    isDraggingRef.current = true
+    hasMovedRef.current = false
   }
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging) return
-    const diff = e.touches[0].clientX - startX
-    const resistance = 0.5
-    const maxSwipe = 100
-    const resistedSwipe = Math.abs(diff) > maxSwipe
-      ? Math.sign(diff) * (maxSwipe + (Math.abs(diff) - maxSwipe) * resistance)
-      : diff
-    setSwipeX(resistedSwipe)
+    if (!isDraggingRef.current) return
+    const diff = e.touches[0].clientX - startXRef.current
+    if (Math.abs(diff) > 5) {
+      hasMovedRef.current = true
+    }
+    const maxSwipe = 80
+    const swipe = Math.abs(diff) > maxSwipe ? Math.sign(diff) * maxSwipe : diff
+    setSwipeX(swipe)
   }
 
   const handleTouchEnd = () => {
-    setIsDragging(false)
-    setIsPressed(false)
+    isDraggingRef.current = false
 
-    if (swipeX > 60) {
+    if (swipeX > 50) {
       onToggleStatus()
-    } else if (swipeX < -60) {
+    } else if (swipeX < -50) {
       onDelete()
+    } else if (!hasMovedRef.current) {
+      // It was a tap, not a swipe - open edit dialog
+      onEdit()
     }
 
     setSwipeX(0)
   }
 
+  const handleToggleClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    onToggleStatus()
+  }
+
   const isCompleted = product.status === 'COMPLETED'
   const currencySymbol = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : currency === 'GBP' ? '£' : currency
 
-  const swipeProgress = Math.abs(swipeX) / 60
-  const showRightAction = swipeX > 15
-  const showLeftAction = swipeX < -15
+  const showRightAction = swipeX > 20
+  const showLeftAction = swipeX < -20
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 5 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      className="relative overflow-hidden rounded-xl"
-    >
+    <div className="relative overflow-hidden rounded-xl">
       {/* Swipe action backgrounds */}
       <div className="absolute inset-0 flex pointer-events-none">
-        <motion.div
-          className="flex-1 flex items-center pl-4 bg-gradient-to-r from-green-400 to-green-500"
-          animate={{
-            opacity: showRightAction ? 1 : 0,
-            x: showRightAction ? 0 : -10
-          }}
+        <div 
+          className={`flex-1 flex items-center pl-4 bg-gradient-to-r from-green-400 to-green-500 transition-opacity duration-150 ${showRightAction ? 'opacity-100' : 'opacity-0'}`}
         >
           <CheckCircle2 className="w-5 h-5 text-white" />
-        </motion.div>
-
-        <motion.div
-          className="flex-1 flex items-center justify-end pr-4 bg-gradient-to-l from-red-400 to-red-500"
-          animate={{
-            opacity: showLeftAction ? 1 : 0,
-            x: showLeftAction ? 0 : 10
-          }}
+        </div>
+        <div 
+          className={`flex-1 flex items-center justify-end pr-4 bg-gradient-to-l from-red-400 to-red-500 transition-opacity duration-150 ${showLeftAction ? 'opacity-100' : 'opacity-0'}`}
         >
           <Trash2 className="w-5 h-5 text-white" />
-        </motion.div>
+        </div>
       </div>
 
-      {/* Main card */}
-      <motion.div
-        animate={{
-          x: swipeX,
-          scale: isPressed ? 0.98 : 1
-        }}
-        transition={{
-          x: { type: 'spring', stiffness: 500, damping: 30 },
-          scale: { type: 'spring', stiffness: 500, damping: 30 }
+      {/* Main card - using CSS transform for performance */}
+      <div
+        style={{
+          transform: `translateX(${swipeX}px)`,
+          transition: swipeX === 0 ? 'transform 0.2s ease-out' : 'none'
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onClick={onEdit}
-        className="cursor-pointer"
+        className="touch-manipulation cursor-pointer"
       >
         {compactMode ? (
           // COMPACT MODE: Only name and toggle
@@ -778,20 +749,16 @@ function ProductCard({
             } rounded-xl`}
           >
             {/* Toggle button */}
-            <motion.button
-              whileTap={{ scale: 0.8 }}
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggleStatus()
-              }}
-              className="p-0.5 touch-manipulation flex-shrink-0"
+            <button
+              onClick={handleToggleClick}
+              className="p-0.5 touch-manipulation flex-shrink-0 active:scale-90 transition-transform"
             >
               {isCompleted ? (
                 <CheckCircle2 className="w-4 h-4 text-primary" />
               ) : (
                 <Circle className="w-4 h-4 text-muted-foreground/40" />
               )}
-            </motion.button>
+            </button>
 
             {/* Product name only */}
             <span className={`flex-1 min-w-0 truncate text-sm ${isCompleted ? 'line-through text-muted-foreground' : ''}`}>
@@ -821,20 +788,16 @@ function ProductCard({
             ) : null}
 
             {/* Toggle button */}
-            <motion.button
-              whileTap={{ scale: 0.8 }}
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggleStatus()
-              }}
-              className="p-0.5 touch-manipulation flex-shrink-0"
+            <button
+              onClick={handleToggleClick}
+              className="p-0.5 touch-manipulation flex-shrink-0 active:scale-90 transition-transform"
             >
               {isCompleted ? (
                 <CheckCircle2 className="w-5 h-5 text-primary" />
               ) : (
                 <Circle className="w-5 h-5 text-muted-foreground/40" />
               )}
-            </motion.button>
+            </button>
 
             {/* Product details */}
             <div className="flex-1 min-w-0">
@@ -872,8 +835,8 @@ function ProductCard({
             )}
           </div>
         )}
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   )
 }
 
@@ -1134,8 +1097,7 @@ function ProductDialog({
               <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} 
                 className="w-full h-9 rounded-lg border border-dashed border-muted-foreground/30 hover:border-primary flex items-center justify-center gap-1 text-muted-foreground text-xs">
                 {uploading ? (
-                  <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                    className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full" />
+                  <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
                     <Plus className="w-3 h-3" />
@@ -1150,8 +1112,7 @@ function ProductDialog({
           <div className="flex gap-2 pt-1">
             <Button variant="outline" size="sm" className="flex-1 h-9 rounded-lg text-xs" onClick={() => onOpenChange(false)}>Annulla</Button>
             <Button size="sm" className="flex-1 h-9 rounded-lg text-xs" onClick={handleSave} disabled={loading}>
-              {loading ? <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                className="w-3 h-3 border-2 border-white border-t-transparent rounded-full" /> : (product ? 'Salva' : 'Aggiungi')}
+              {loading ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : (product ? 'Salva' : 'Aggiungi')}
             </Button>
           </div>
         </div>
@@ -2056,25 +2017,15 @@ function Dashboard({
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center py-12">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-              className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full"
+            <div
+              className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin"
             />
           </div>
         ) : products.length === 0 ? (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center py-16"
-          >
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.1, type: 'spring', stiffness: 300 }}
-            >
+          <div className="text-center py-16 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="animate-in zoom-in duration-300">
               <ChefHat className="w-24 h-24 mx-auto text-muted-foreground/30 mb-6" />
-            </motion.div>
+            </div>
             <h3 className="font-semibold text-lg mb-2">Lista vuota</h3>
             <p className="text-sm text-muted-foreground mb-2">
               Tocca il pulsante + per aggiungere
@@ -2082,33 +2033,25 @@ function Dashboard({
             <p className="text-xs text-muted-foreground/70">
               alla lista "{currentList.name}"
             </p>
-          </motion.div>
+          </div>
         ) : (
           <div className="space-y-1">
-            <AnimatePresence mode="popLayout">
-              {products.map((product, index) => (
-                <motion.div
-                  key={product.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.02 }}
-                >
-                  <ProductCard
-                    product={product}
-                    onToggleStatus={() => handleToggleStatus(product)}
-                    onDelete={() => handleDelete(product)}
-                    onEdit={() => {
-                      setEditingProduct(product)
-                      setShowProductDialog(true)
-                    }}
-                    showPrices={settings?.showPrices ?? true}
-                    showImages={settings?.showImages ?? false}
-                    compactMode={settings?.compactMode ?? false}
-                    currency={currency}
-                  />
-                </motion.div>
-              ))}
-            </AnimatePresence>
+            {products.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                onToggleStatus={() => handleToggleStatus(product)}
+                onDelete={() => handleDelete(product)}
+                onEdit={() => {
+                  setEditingProduct(product)
+                  setShowProductDialog(true)
+                }}
+                showPrices={settings?.showPrices ?? true}
+                showImages={settings?.showImages ?? false}
+                compactMode={settings?.compactMode ?? false}
+                currency={currency}
+              />
+            ))}
           </div>
         )}
       </main>
