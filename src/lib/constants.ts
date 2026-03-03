@@ -1,11 +1,20 @@
 // App version - update this with each release
-export const APP_VERSION = 'alpha-v1.0.5'
+export const APP_VERSION = 'alpha-v1.0.6'
 export const APP_NAME = 'Dispensa'
 export const APP_TAGLINE = 'La tua spesa, organizzata'
 export const APP_AUTHOR = 'Dispensa Team'
 
 // Version history for changelog
 export const VERSION_HISTORY = [
+  {
+    version: 'alpha-v1.0.6',
+    date: '2025-01-15',
+    changes: [
+      'Migrato da Turso a Prisma ORM per compatibilità Vercel',
+      'Rimosso @libsql/client - ora usa solo Prisma',
+      'Fix errore build "Module not found: @libsql/client"',
+    ],
+  },
   {
     version: 'alpha-v1.0.5',
     date: '2025-01-15',

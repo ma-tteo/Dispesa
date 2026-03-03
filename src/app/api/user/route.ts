@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query, execute } from '@/lib/db-turso'
+import { db } from '@/lib/db'
 import bcrypt from 'bcryptjs'
-
-interface User {
-  id: string
-  email: string
-  name: string | null
-  avatar: string | null
-  password: string
-  createdAt: string
-  updatedAt: string
-}
 
 // Get user profile
 export async function GET(request: NextRequest) {
@@ -21,17 +11,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
 
-    const users = await query<User>(
-      'SELECT id, email, name, avatar, createdAt, updatedAt FROM User WHERE id = ?',
-      [userId]
-    )
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatar: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    })
 
-    if (users.length === 0) {
+    if (!user) {
       return NextResponse.json({ error: 'Utente non trovato' }, { status: 404 })
     }
 
-    const { password: _, ...userWithoutPassword } = users[0]
-    return NextResponse.json({ user: userWithoutPassword })
+    return NextResponse.json({ user })
   } catch (error) {
     console.error('[API] Get user error:', error)
     return NextResponse.json({ error: 'Errore durante il recupero utente' }, { status: 500 })
@@ -51,33 +47,40 @@ export async function PUT(request: NextRequest) {
     const { name, email, avatar, currentPassword, newPassword } = body
 
     // Get current user
-    const users = await query<User>('SELECT * FROM User WHERE id = ?', [userId])
-    if (users.length === 0) {
+    const user = await db.user.findUnique({
+      where: { id: userId },
+    })
+
+    if (!user) {
       return NextResponse.json({ error: 'Utente non trovato' }, { status: 404 })
     }
-    const user = users[0]
 
-    const updates: string[] = []
-    const values: (string | number | null)[] = []
+    // Build update data
+    const updateData: {
+      name?: string | null
+      email?: string
+      avatar?: string | null
+      password?: string
+    } = {}
 
     if (name !== undefined) {
-      updates.push('name = ?')
-      values.push(name?.trim() || null)
+      updateData.name = name?.trim() || null
     }
 
     if (email !== undefined && email !== user.email) {
       // Check if email is already in use
-      const existingUsers = await query<User>('SELECT id FROM User WHERE email = ? AND id != ?', [email, userId])
-      if (existingUsers.length > 0) {
+      const existingUser = await db.user.findUnique({
+        where: { email },
+      })
+
+      if (existingUser && existingUser.id !== userId) {
         return NextResponse.json({ error: 'Email già in uso' }, { status: 400 })
       }
-      updates.push('email = ?')
-      values.push(email)
+      updateData.email = email
     }
 
     if (avatar !== undefined) {
-      updates.push('avatar = ?')
-      values.push(avatar || null)
+      updateData.avatar = avatar || null
     }
 
     // Handle password change
@@ -89,25 +92,31 @@ export async function PUT(request: NextRequest) {
       if (newPassword.length < 6) {
         return NextResponse.json({ error: 'La nuova password deve avere almeno 6 caratteri' }, { status: 400 })
       }
-      updates.push('password = ?')
-      values.push(await bcrypt.hash(newPassword, 10))
+      updateData.password = await bcrypt.hash(newPassword, 10)
     }
 
-    if (updates.length > 0) {
-      updates.push('updatedAt = ?')
-      values.push(new Date().toISOString())
-      values.push(userId)
-
-      await execute(`UPDATE User SET ${updates.join(', ')} WHERE id = ?`, values)
+    // Update user
+    if (Object.keys(updateData).length > 0) {
+      await db.user.update({
+        where: { id: userId },
+        data: updateData,
+      })
     }
 
     // Fetch updated user
-    const updatedUsers = await query<User>(
-      'SELECT id, email, name, avatar, createdAt, updatedAt FROM User WHERE id = ?',
-      [userId]
-    )
+    const updatedUser = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatar: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    })
 
-    return NextResponse.json({ user: updatedUsers[0] })
+    return NextResponse.json({ user: updatedUser })
   } catch (error) {
     console.error('[API] Update user error:', error)
     return NextResponse.json({ error: 'Errore durante l\'aggiornamento' }, { status: 500 })
@@ -123,8 +132,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
 
-    // Delete user (cascade handled by database)
-    await execute('DELETE FROM User WHERE id = ?', [userId])
+    // Delete user (cascade handled by Prisma schema)
+    await db.user.delete({
+      where: { id: userId },
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

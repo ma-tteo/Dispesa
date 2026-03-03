@@ -1,38 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query, execute } from '@/lib/db-turso'
-
-interface List {
-  id: string
-  name: string
-  icon: string | null
-  color: string | null
-  groupId: string
-  createdById: string
-  sortOrder: number
-  createdAt: string
-  updatedAt: string
-}
-
-interface FamilyMember {
-  userId: string
-}
+import { db } from '@/lib/db'
 
 // Verify user has access to the list's group
-async function verifyListAccess(listId: string, userId: string): Promise<{ hasAccess: boolean; list?: List }> {
-  const lists = await query<List>('SELECT * FROM List WHERE id = ?', [listId])
+async function verifyListAccess(listId: string, userId: string) {
+  const list = await db.list.findUnique({
+    where: { id: listId },
+    include: {
+      group: {
+        include: {
+          members: {
+            where: { userId },
+          },
+        },
+      },
+    },
+  })
 
-  if (lists.length === 0) {
-    return { hasAccess: false }
+  if (!list) {
+    return { hasAccess: false, list: null }
   }
 
-  const list = lists[0]
-
-  const members = await query<FamilyMember>(
-    'SELECT userId FROM FamilyMember WHERE userId = ? AND groupId = ?',
-    [userId, list.groupId]
-  )
-
-  return { hasAccess: members.length > 0, list }
+  const hasAccess = list.group.members.length > 0
+  return { hasAccess, list }
 }
 
 // Update a list
@@ -57,55 +46,69 @@ export async function PUT(
     const body = await request.json()
     const { name, icon, color, sortOrder } = body
 
-    const updates: string[] = []
-    const values: (string | number | null)[] = []
+    // Build update data
+    const updateData: {
+      name?: string
+      icon?: string | null
+      color?: string | null
+      sortOrder?: number
+    } = {}
 
     if (name !== undefined) {
-      updates.push('name = ?')
-      values.push(name.trim())
+      updateData.name = name.trim()
     }
     if (icon !== undefined) {
-      updates.push('icon = ?')
-      values.push(icon || null)
+      updateData.icon = icon || null
     }
     if (color !== undefined) {
-      updates.push('color = ?')
-      values.push(color || null)
+      updateData.color = color || null
     }
     if (sortOrder !== undefined) {
-      updates.push('sortOrder = ?')
-      values.push(sortOrder)
+      updateData.sortOrder = sortOrder
     }
 
-    if (updates.length > 0) {
-      updates.push('updatedAt = ?')
-      values.push(new Date().toISOString())
-      values.push(id)
-
-      await execute(`UPDATE List SET ${updates.join(', ')} WHERE id = ?`, values)
+    // Update the list
+    if (Object.keys(updateData).length > 0) {
+      await db.list.update({
+        where: { id },
+        data: updateData,
+      })
     }
 
-    // Fetch updated list with product count
-    const updatedLists = await query<List & { productCount: number }>(`
-      SELECT l.*, COUNT(p.id) as productCount
-      FROM List l
-      LEFT JOIN Product p ON l.id = p.listId
-      WHERE l.id = ?
-      GROUP BY l.id
-    `, [id])
+    // Fetch updated list with product count and created by user
+    const updatedList = await db.list.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { products: true },
+        },
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    })
 
-    // Fetch created by user
-    const users = await query<{ id: string; name: string | null }>(
-      'SELECT id, name FROM User WHERE id = ?',
-      [updatedLists[0].createdById]
-    )
+    // Transform to match expected format
+    const result = updatedList
+      ? {
+          id: updatedList.id,
+          name: updatedList.name,
+          icon: updatedList.icon,
+          color: updatedList.color,
+          groupId: updatedList.groupId,
+          createdById: updatedList.createdById,
+          sortOrder: updatedList.sortOrder,
+          createdAt: updatedList.createdAt,
+          updatedAt: updatedList.updatedAt,
+          productCount: updatedList._count.products,
+          createdBy: updatedList.createdBy,
+        }
+      : null
 
-    const updatedList = {
-      ...updatedLists[0],
-      createdBy: users[0] || null,
-    }
-
-    return NextResponse.json({ list: updatedList })
+    return NextResponse.json({ list: result })
   } catch (error) {
     console.error('[API] Update list error:', error)
     return NextResponse.json({ error: 'Errore durante l\'aggiornamento della lista' }, { status: 500 })
@@ -131,11 +134,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Lista non trovata o non autorizzato' }, { status: 404 })
     }
 
-    // Delete all products in the list first
-    await execute('DELETE FROM Product WHERE listId = ?', [id])
-
-    // Delete the list
-    await execute('DELETE FROM List WHERE id = ?', [id])
+    // Delete the list (cascade will delete products automatically via Prisma schema)
+    await db.list.delete({
+      where: { id },
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

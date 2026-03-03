@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/db-turso'
+import { db } from '@/lib/db'
 import bcrypt from 'bcryptjs'
-
-interface User {
-  id: string
-  email: string
-  name: string | null
-  password: string
-  avatar: string | null
-  createdAt: string
-  updatedAt: string
-}
 
 // Email validation regex
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -38,12 +28,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Query with normalized email
-    const users = await query<User>(
-      'SELECT id, email, name, password, avatar, createdAt, updatedAt FROM User WHERE email = ?',
-      [normalizedEmail]
-    )
-
-    const user = users[0]
+    const user = await db.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        password: true,
+        avatar: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    })
 
     // Generic error message to prevent user enumeration
     if (!user) {

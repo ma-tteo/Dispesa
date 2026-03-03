@@ -1,14 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/db-turso'
-
-interface User {
-  id: string
-  email: string
-  name: string | null
-  avatar: string | null
-  createdAt: string
-  updatedAt: string
-}
+import { db } from '@/lib/db'
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,19 +12,26 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const users = await query<User>(
-      'SELECT id, email, name, avatar, createdAt, updatedAt FROM User WHERE id = ?',
-      [userId]
-    )
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatar: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    })
 
-    if (users.length === 0) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Utente non trovato' },
         { status: 404 }
       )
     }
 
-    return NextResponse.json({ user: users[0] })
+    return NextResponse.json({ user })
   } catch (error) {
     console.error('[API] Get current user error:', error)
     return NextResponse.json(

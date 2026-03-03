@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query, execute, generateId } from '@/lib/db-turso'
+import { db } from '@/lib/db'
 import bcrypt from 'bcryptjs'
-
-interface User {
-  id: string
-  email: string
-  name: string | null
-  password: string
-  avatar: string | null
-  createdAt: string
-  updatedAt: string
-}
 
 // Email validation regex
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -56,12 +46,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check existing user
-    const existingUsers = await query<User>(
-      'SELECT id FROM User WHERE email = ?',
-      [normalizedEmail]
-    )
+    const existingUser = await db.user.findUnique({
+      where: { email: normalizedEmail }
+    })
 
-    if (existingUsers.length > 0) {
+    if (existingUser) {
       return NextResponse.json(
         { error: 'Email già registrata' },
         { status: 400 }
@@ -70,25 +59,25 @@ export async function POST(request: NextRequest) {
 
     // Create user
     const hashedPassword = await bcrypt.hash(password, 10)
-    const id = generateId()
-    const now = new Date().toISOString()
     const sanitizedName = name?.trim().slice(0, MAX_NAME_LENGTH) || null
 
-    await execute(
-      'INSERT INTO User (id, email, name, password, avatar, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, normalizedEmail, sanitizedName, hashedPassword, null, now, now]
-    )
-
-    return NextResponse.json({
-      user: {
-        id,
+    const user = await db.user.create({
+      data: {
         email: normalizedEmail,
         name: sanitizedName,
-        avatar: null,
-        createdAt: now,
-        updatedAt: now
+        password: hashedPassword,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatar: true,
+        createdAt: true,
+        updatedAt: true,
       }
     })
+
+    return NextResponse.json({ user })
   } catch (error) {
     console.error('[API] Register error:', error)
     return NextResponse.json(

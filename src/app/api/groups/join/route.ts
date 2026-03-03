@@ -1,28 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query, execute, generateId } from '@/lib/db-turso'
-
-interface FamilyGroup {
-  id: string
-  name: string
-  inviteCode: string
-  ownerId: string
-  createdAt: string
-  updatedAt: string
-}
-
-interface FamilyMember {
-  id: string
-  userId: string
-  groupId: string
-  joinedAt: string
-}
-
-interface User {
-  id: string
-  name: string | null
-  email: string
-  avatar: string | null
-}
+import { db } from '@/lib/db'
 
 // Constants
 const MAX_GROUP_MEMBERS = 10
@@ -52,27 +29,28 @@ export async function POST(request: NextRequest) {
     const sanitizedCode = inviteCode.toUpperCase().trim().slice(0, 20)
 
     // Find group by invite code
-    const groups = await query<FamilyGroup>(
-      'SELECT * FROM FamilyGroup WHERE inviteCode = ?',
-      [sanitizedCode]
-    )
+    const group = await db.familyGroup.findUnique({
+      where: { inviteCode: sanitizedCode },
+    })
 
-    if (groups.length === 0) {
+    if (!group) {
       return NextResponse.json(
         { error: 'Codice invito non valido' },
         { status: 404 }
       )
     }
 
-    const group = groups[0]
-
     // Check if user is already a member
-    const existingMemberships = await query<FamilyMember>(
-      'SELECT id FROM FamilyMember WHERE userId = ? AND groupId = ?',
-      [userId, group.id]
-    )
+    const existingMembership = await db.familyMember.findUnique({
+      where: {
+        userId_groupId: {
+          userId,
+          groupId: group.id,
+        },
+      },
+    })
 
-    if (existingMemberships.length > 0) {
+    if (existingMembership) {
       return NextResponse.json(
         { error: 'Sei già membro di questo gruppo' },
         { status: 400 }
@@ -80,12 +58,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if group has room (max members)
-    const memberCount = await query<{ count: number }>(
-      'SELECT COUNT(*) as count FROM FamilyMember WHERE groupId = ?',
-      [group.id]
-    )
+    const memberCount = await db.familyMember.count({
+      where: { groupId: group.id },
+    })
 
-    if ((memberCount[0]?.count ?? 0) >= MAX_GROUP_MEMBERS) {
+    if (memberCount >= MAX_GROUP_MEMBERS) {
       return NextResponse.json(
         { error: `Il gruppo ha raggiunto il limite massimo di membri (${MAX_GROUP_MEMBERS})` },
         { status: 400 }
@@ -93,44 +70,39 @@ export async function POST(request: NextRequest) {
     }
 
     // Add user to group
-    const memberId = generateId()
-    const now = new Date().toISOString()
+    await db.familyMember.create({
+      data: {
+        userId,
+        groupId: group.id,
+      },
+    })
 
-    await execute(
-      'INSERT INTO FamilyMember (id, userId, groupId, joinedAt) VALUES (?, ?, ?, ?)',
-      [memberId, userId, group.id, now]
-    )
-
-    // Fetch all members with user info
-    const members = await query<FamilyMember & User>(`
-      SELECT m.id, m.userId, m.groupId, m.joinedAt, u.id, u.name, u.email, u.avatar
-      FROM FamilyMember m
-      JOIN User u ON m.userId = u.id
-      WHERE m.groupId = ?
-    `, [group.id])
-
-    // Fetch owner info
-    const owners = await query<User>(
-      'SELECT id, name, email, avatar FROM User WHERE id = ?',
-      [group.ownerId]
-    )
-
-    const updatedGroup = {
-      ...group,
-      members: members.map(m => ({
-        id: m.id,
-        userId: m.userId,
-        groupId: m.groupId,
-        joinedAt: m.joinedAt,
-        user: {
-          id: m.userId,
-          name: m.name,
-          email: m.email,
-          avatar: m.avatar,
-        }
-      })),
-      owner: owners[0] || null,
-    }
+    // Fetch updated group with members and owner
+    const updatedGroup = await db.familyGroup.findUnique({
+      where: { id: group.id },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            avatar: true,
+          },
+        },
+      },
+    })
 
     return NextResponse.json({ group: updatedGroup })
   } catch (error) {
