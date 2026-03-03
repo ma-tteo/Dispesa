@@ -1,11 +1,19 @@
 // App version - update this with each release
-export const APP_VERSION = 'alpha-v1.0.3'
+export const APP_VERSION = 'alpha-v1.0.4'
 export const APP_NAME = 'Dispensa'
 export const APP_TAGLINE = 'La tua spesa, organizzata'
 export const APP_AUTHOR = 'Dispensa Team'
 
 // Version history for changelog
 export const VERSION_HISTORY = [
+  {
+    version: 'alpha-v1.0.4',
+    date: '2025-01-15',
+    changes: [
+      'Fix caricamento progressivo - interfaccia appare completa',
+      'LoadingScreen mostra mentre Dashboard carica in background',
+    ],
+  },
   {
     version: 'alpha-v1.0.3',
     date: '2025-01-15',

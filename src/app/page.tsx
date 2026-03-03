@@ -1445,6 +1445,7 @@ function Dashboard({
   onLogout,
   onOpenSettings,
   settings,
+  onReady,
 }: {
   user: UserType
   group: FamilyGroup
@@ -1452,6 +1453,7 @@ function Dashboard({
   onLogout: () => void
   onOpenSettings: () => void
   settings: UserSettings | null
+  onReady?: () => void
 }) {
   const [products, setProducts] = useState<Product[]>([])
   const [lists, setLists] = useState<List[]>([])
@@ -1594,7 +1596,7 @@ function Dashboard({
         setLists(listsRes.lists)
         setCategories(categoriesRes.categories)
 
-        // Set current list
+        // Set current list and fetch products
         if (listsRes.lists.length > 0) {
           const firstList = listsRes.lists[0]
           setCurrentList(firstList)
@@ -1611,11 +1613,12 @@ function Dashboard({
         console.error('Error loading initial data:', error)
       } finally {
         setLoading(false)
+        onReady?.()
       }
     }
 
     loadInitialData()
-  }, [group.id, user.id])
+  }, [group.id, user.id, onReady])
 
   // Fetch lists when needed (after creation)
   useEffect(() => {
@@ -1785,6 +1788,11 @@ function Dashboard({
     a.click()
     URL.revokeObjectURL(url)
     toast.success(`Lista esportata come ${format.toUpperCase()}`)
+  }
+
+  // Don't render anything while loading - let the App show LoadingScreen
+  if (loading) {
+    return null
   }
 
   return (
@@ -2156,6 +2164,12 @@ export default function App() {
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [isFetchingData, setIsFetchingData] = useState(false)
+  const [dashboardReady, setDashboardReady] = useState(false)
+
+  // Reset dashboard ready when group changes
+  useEffect(() => {
+    setDashboardReady(false)
+  }, [currentGroup?.id])
 
   // Apply theme when settings change
   useEffect(() => {
@@ -2320,6 +2334,8 @@ export default function App() {
 
   return (
     <>
+      {/* Show loading screen while dashboard loads data */}
+      {!dashboardReady && <LoadingScreen />}
       <Dashboard
         user={user}
         group={currentGroup}
@@ -2327,6 +2343,7 @@ export default function App() {
         onLogout={handleLogout}
         onOpenSettings={() => setShowSettings(true)}
         settings={settings}
+        onReady={() => setDashboardReady(true)}
       />
       <SettingsDialog
         open={showSettings}
