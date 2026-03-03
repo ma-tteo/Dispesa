@@ -663,16 +663,16 @@ function SettingsDialog({
 }
 
 // Product Card Component - Mobile Optimized
-function ProductCard({ 
-  product, 
-  onToggleStatus, 
+function ProductCard({
+  product,
+  onToggleStatus,
   onDelete,
   onEdit,
   showPrices = true,
   showImages = false,
   compactMode = false,
   currency = 'EUR'
-}: { 
+}: {
   product: Product
   onToggleStatus: () => void
   onDelete: () => void
@@ -696,10 +696,9 @@ function ProductCard({
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isDragging) return
     const diff = e.touches[0].clientX - startX
-    // Add resistance at edges
     const resistance = 0.5
-    const maxSwipe = 120
-    const resistedSwipe = Math.abs(diff) > maxSwipe 
+    const maxSwipe = 100
+    const resistedSwipe = Math.abs(diff) > maxSwipe
       ? Math.sign(diff) * (maxSwipe + (Math.abs(diff) - maxSwipe) * resistance)
       : diff
     setSwipeX(resistedSwipe)
@@ -708,75 +707,60 @@ function ProductCard({
   const handleTouchEnd = () => {
     setIsDragging(false)
     setIsPressed(false)
-    
-    // Haptic feedback simulation via visual feedback
-    if (swipeX > 80) {
+
+    if (swipeX > 60) {
       onToggleStatus()
-    } else if (swipeX < -80) {
+    } else if (swipeX < -60) {
       onDelete()
     }
-    
-    // Animate back
+
     setSwipeX(0)
   }
 
   const isCompleted = product.status === 'COMPLETED'
   const currencySymbol = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : currency === 'GBP' ? '£' : currency
-  
-  // Calculate swipe progress for visual feedback
-  const swipeProgress = Math.abs(swipeX) / 80
-  const showRightAction = swipeX > 20
-  const showLeftAction = swipeX < -20
+
+  const swipeProgress = Math.abs(swipeX) / 60
+  const showRightAction = swipeX > 15
+  const showLeftAction = swipeX < -15
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 5 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.9 }}
-      className="relative overflow-hidden rounded-2xl"
+      className="relative overflow-hidden rounded-xl"
     >
       {/* Swipe action backgrounds */}
       <div className="absolute inset-0 flex pointer-events-none">
-        {/* Right swipe - Complete */}
-        <motion.div 
-          className="flex-1 flex items-center pl-6 bg-gradient-to-r from-green-400 to-green-500"
-          animate={{ 
+        <motion.div
+          className="flex-1 flex items-center pl-4 bg-gradient-to-r from-green-400 to-green-500"
+          animate={{
             opacity: showRightAction ? 1 : 0,
-            x: showRightAction ? 0 : -20
+            x: showRightAction ? 0 : -10
           }}
         >
-          <motion.div
-            animate={{ scale: swipeProgress > 1 ? 1.2 : 1 }}
-            transition={{ type: 'spring', stiffness: 500 }}
-          >
-            <CheckCircle2 className="w-7 h-7 text-white drop-shadow-md" />
-          </motion.div>
+          <CheckCircle2 className="w-5 h-5 text-white" />
         </motion.div>
-        
-        {/* Left swipe - Delete */}
-        <motion.div 
-          className="flex-1 flex items-center justify-end pr-6 bg-gradient-to-l from-red-400 to-red-500"
-          animate={{ 
+
+        <motion.div
+          className="flex-1 flex items-center justify-end pr-4 bg-gradient-to-l from-red-400 to-red-500"
+          animate={{
             opacity: showLeftAction ? 1 : 0,
-            x: showLeftAction ? 0 : 20
+            x: showLeftAction ? 0 : 10
           }}
         >
-          <motion.div
-            animate={{ scale: swipeProgress > 1 ? 1.2 : 1 }}
-            transition={{ type: 'spring', stiffness: 500 }}
-          >
-            <Trash2 className="w-7 h-7 text-white drop-shadow-md" />
-          </motion.div>
+          <Trash2 className="w-5 h-5 text-white" />
         </motion.div>
       </div>
 
       {/* Main card */}
       <motion.div
-        animate={{ 
+        animate={{
           x: swipeX,
           scale: isPressed ? 0.98 : 1
         }}
-        transition={{ 
+        transition={{
           x: { type: 'spring', stiffness: 500, damping: 30 },
           scale: { type: 'spring', stiffness: 500, damping: 30 }
         }}
@@ -786,74 +770,63 @@ function ProductCard({
         onClick={onEdit}
         className="cursor-pointer"
       >
-        <Card
-          className={`soft-shadow border-0 transition-all ${
-            isCompleted ? 'opacity-70 bg-muted/50' : 'bg-card'
-          }`}
+        <div
+          className={`flex items-center gap-2 px-2.5 py-1.5 ${
+            compactMode ? 'py-1 px-2' : ''
+          } ${isCompleted ? 'opacity-60 bg-muted/30' : 'bg-card'} rounded-xl`}
         >
-          <CardContent className={`${compactMode ? 'p-2' : 'p-3'}`}>
-            <div className="flex items-center gap-2">
-              {/* Product Image */}
-              {showImages && product.imageUrl && (
-                <div className="w-10 h-10 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-                  <img 
-                    src={product.imageUrl} 
-                    alt={product.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              )}
-              
-              {/* Toggle button with larger touch target */}
-              <motion.button
-                whileTap={{ scale: 0.85 }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onToggleStatus()
-                }}
-                className="p-1.5 -m-1.5 touch-manipulation"
-              >
-                {isCompleted ? (
-                  <CheckCircle2 className="w-5 h-5 text-primary" />
-                ) : (
-                  <Circle className="w-5 h-5 text-muted-foreground/50" />
-                )}
-              </motion.button>
-              
-              <div className="flex-1 min-w-0">
-                <h3 className={`font-medium truncate ${isCompleted ? 'line-through text-muted-foreground' : ''} text-sm`}>
-                  {product.name}
-                </h3>
-                
-                <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                  {product.category && (
-                    <Badge variant="secondary" className="rounded-md text-[10px] px-1.5 py-0 h-4">
-                      <span>{product.category.icon || '📦'}</span>
-                      <span className="ml-0.5">{product.category.name}</span>
-                    </Badge>
-                  )}
-                  {product.quantity > 1 && (
-                    <Badge variant="outline" className="rounded-md text-[10px] px-1.5 py-0 h-4 font-medium">
-                      ×{product.quantity}
-                    </Badge>
-                  )}
-                </div>
-                
-                {showPrices && product.price && (
-                  <p className="text-primary font-medium text-xs mt-0.5">
-                    {currencySymbol}{(product.price * product.quantity).toFixed(2)}
-                    {product.weight && (
-                      <span className="text-muted-foreground font-normal ml-1">• {product.weight}</span>
-                    )}
-                  </p>
-                )}
-              </div>
-
-              {/* Quick edit indicator */}
-              <ChevronDown className="w-3 h-3 text-muted-foreground/30 -rotate-90" />
+          {/* Product Image - smaller */}
+          {showImages && product.imageUrl && (
+            <div className="w-6 h-6 rounded overflow-hidden bg-muted flex-shrink-0">
+              <img
+                src={product.imageUrl}
+                alt={product.name}
+                className="w-full h-full object-cover"
+              />
             </div>
-          </CardContent>
-        </Card>
+          )}
+
+          {/* Toggle button */}
+          <motion.button
+            whileTap={{ scale: 0.8 }}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleStatus()
+            }}
+            className="p-0.5 touch-manipulation flex-shrink-0"
+          >
+            {isCompleted ? (
+              <CheckCircle2 className="w-4 h-4 text-primary" />
+            ) : (
+              <Circle className="w-4 h-4 text-muted-foreground/40" />
+            )}
+          </motion.button>
+
+          {/* Product name */}
+          <span className={`flex-1 min-w-0 truncate text-sm ${isCompleted ? 'line-through text-muted-foreground' : ''}`}>
+            {product.name}
+          </span>
+
+          {/* Category emoji only */}
+          {product.category && (
+            <span className="text-xs flex-shrink-0">{product.category.icon || '📦'}</span>
+          )}
+
+          {/* Quantity */}
+          {product.quantity > 1 && (
+            <span className="text-xs text-muted-foreground flex-shrink-0">×{product.quantity}</span>
+          )}
+
+          {/* Price */}
+          {showPrices && product.price && (
+            <span className="text-xs font-medium text-primary flex-shrink-0">
+              {currencySymbol}{(product.price * product.quantity).toFixed(2)}
+            </span>
+          )}
+
+          {/* Edit indicator */}
+          <ChevronDown className="w-3 h-3 text-muted-foreground/20 -rotate-90 flex-shrink-0" />
+        </div>
       </motion.div>
     </motion.div>
   )
@@ -2022,14 +1995,14 @@ function Dashboard({
             </p>
           </motion.div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-1">
             <AnimatePresence mode="popLayout">
               {products.map((product, index) => (
                 <motion.div
                   key={product.id}
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.03 }}
+                  transition={{ delay: index * 0.02 }}
                 >
                   <ProductCard
                     product={product}
