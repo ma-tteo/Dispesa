@@ -770,63 +770,108 @@ function ProductCard({
         onClick={onEdit}
         className="cursor-pointer"
       >
-        <div
-          className={`flex items-center gap-2 px-2.5 py-1.5 ${
-            compactMode ? 'py-1 px-2' : ''
-          } ${isCompleted ? 'opacity-60 bg-muted/30' : 'bg-card'} rounded-xl`}
-        >
-          {/* Product Image - smaller */}
-          {showImages && product.imageUrl && (
-            <div className="w-6 h-6 rounded overflow-hidden bg-muted flex-shrink-0">
-              <img
-                src={product.imageUrl}
-                alt={product.name}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          )}
-
-          {/* Toggle button */}
-          <motion.button
-            whileTap={{ scale: 0.8 }}
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggleStatus()
-            }}
-            className="p-0.5 touch-manipulation flex-shrink-0"
+        {compactMode ? (
+          // COMPACT MODE: Only name and toggle
+          <div
+            className={`flex items-center gap-2 px-2 py-1 ${
+              isCompleted ? 'opacity-60 bg-muted/30' : 'bg-card'
+            } rounded-xl`}
           >
-            {isCompleted ? (
-              <CheckCircle2 className="w-4 h-4 text-primary" />
-            ) : (
-              <Circle className="w-4 h-4 text-muted-foreground/40" />
-            )}
-          </motion.button>
+            {/* Toggle button */}
+            <motion.button
+              whileTap={{ scale: 0.8 }}
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleStatus()
+              }}
+              className="p-0.5 touch-manipulation flex-shrink-0"
+            >
+              {isCompleted ? (
+                <CheckCircle2 className="w-4 h-4 text-primary" />
+              ) : (
+                <Circle className="w-4 h-4 text-muted-foreground/40" />
+              )}
+            </motion.button>
 
-          {/* Product name */}
-          <span className={`flex-1 min-w-0 truncate text-sm ${isCompleted ? 'line-through text-muted-foreground' : ''}`}>
-            {product.name}
-          </span>
-
-          {/* Category emoji only */}
-          {product.category && (
-            <span className="text-xs flex-shrink-0">{product.category.icon || '📦'}</span>
-          )}
-
-          {/* Quantity */}
-          {product.quantity > 1 && (
-            <span className="text-xs text-muted-foreground flex-shrink-0">×{product.quantity}</span>
-          )}
-
-          {/* Price */}
-          {showPrices && product.price && (
-            <span className="text-xs font-medium text-primary flex-shrink-0">
-              {currencySymbol}{(product.price * product.quantity).toFixed(2)}
+            {/* Product name only */}
+            <span className={`flex-1 min-w-0 truncate text-sm ${isCompleted ? 'line-through text-muted-foreground' : ''}`}>
+              {product.name}
             </span>
-          )}
+          </div>
+        ) : (
+          // NORMAL MODE: All details
+          <div
+            className={`flex items-center gap-3 px-3 py-2.5 ${
+              isCompleted ? 'opacity-60 bg-muted/30' : 'bg-card'
+            } rounded-xl`}
+          >
+            {/* Product Image */}
+            {showImages && product.imageUrl ? (
+              <div className="w-12 h-12 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                <img
+                  src={product.imageUrl}
+                  alt={product.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : showImages ? (
+              <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                <ImageIcon className="w-5 h-5 text-muted-foreground/40" />
+              </div>
+            ) : null}
 
-          {/* Edit indicator */}
-          <ChevronDown className="w-3 h-3 text-muted-foreground/20 -rotate-90 flex-shrink-0" />
-        </div>
+            {/* Toggle button */}
+            <motion.button
+              whileTap={{ scale: 0.8 }}
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleStatus()
+              }}
+              className="p-0.5 touch-manipulation flex-shrink-0"
+            >
+              {isCompleted ? (
+                <CheckCircle2 className="w-5 h-5 text-primary" />
+              ) : (
+                <Circle className="w-5 h-5 text-muted-foreground/40" />
+              )}
+            </motion.button>
+
+            {/* Product details */}
+            <div className="flex-1 min-w-0">
+              <span className={`block truncate font-medium ${isCompleted ? 'line-through text-muted-foreground' : ''}`}>
+                {product.name}
+              </span>
+              
+              {/* Weight and notes */}
+              {(product.weight || product.notes) && (
+                <p className="text-xs text-muted-foreground truncate">
+                  {product.weight}
+                  {product.weight && product.notes && ' • '}
+                  {product.notes}
+                </p>
+              )}
+            </div>
+
+            {/* Category */}
+            {product.category && (
+              <span className="text-lg flex-shrink-0" title={product.category.name}>
+                {product.category.icon || '📦'}
+              </span>
+            )}
+
+            {/* Quantity */}
+            {product.quantity > 1 && (
+              <span className="text-sm text-muted-foreground flex-shrink-0">×{product.quantity}</span>
+            )}
+
+            {/* Price */}
+            {showPrices && product.price && (
+              <span className="text-sm font-semibold text-primary flex-shrink-0">
+                {currencySymbol}{(product.price * product.quantity).toFixed(2)}
+              </span>
+            )}
+          </div>
+        )}
       </motion.div>
     </motion.div>
   )
