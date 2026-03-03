@@ -1500,8 +1500,20 @@ function Dashboard({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Initialize WebSocket with notifications
+  // Initialize WebSocket with notifications (only in development/local)
   useEffect(() => {
+    // Disable WebSocket on Vercel/production (serverless doesn't support persistent connections)
+    const isLocalhost = typeof window !== 'undefined' && (
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname.startsWith('21.0.')
+    )
+
+    if (!isLocalhost) {
+      console.log('WebSocket disabled in production')
+      return
+    }
+
     const newSocket = io('/?XTransformPort=3003', {
       path: '/',
       transports: ['websocket'],

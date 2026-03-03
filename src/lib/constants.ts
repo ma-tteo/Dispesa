@@ -1,11 +1,19 @@
 // App version - update this with each release
-export const APP_VERSION = 'alpha-v1.0.9'
+export const APP_VERSION = 'alpha-v1.1.0'
 export const APP_NAME = 'Dispensa'
 export const APP_TAGLINE = 'La tua spesa, organizzata'
 export const APP_AUTHOR = 'Dispensa Team'
 
 // Version history for changelog
 export const VERSION_HISTORY = [
+  {
+    version: 'alpha-v1.1.0',
+    date: '2025-01-15',
+    changes: [
+      'Disabilitato WebSocket in produzione (Vercel serverless)',
+      'Rimossi errori console per ambienti serverless',
+    ],
+  },
   {
     version: 'alpha-v1.0.9',
     date: '2025-01-15',
