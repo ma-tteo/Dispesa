@@ -137,6 +137,37 @@ function applyThemeToDocument(settings: UserSettings | null) {
   root.classList.toggle('compact-mode', settings?.compactMode || false)
 }
 
+// Loading Screen Component
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background via-muted/30 to-background">
+      <motion.div
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 200, delay: 0.1 }}
+        className="flex flex-col items-center gap-6"
+      >
+        <motion.div
+          className="p-5 rounded-full bg-primary/10"
+          animate={{ scale: [1, 1.05, 1] }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <ShoppingCart className="w-12 h-12 text-primary" />
+        </motion.div>
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-1">{APP_NAME}</h1>
+          <p className="text-sm text-muted-foreground">{APP_TAGLINE}</p>
+        </div>
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full"
+        />
+      </motion.div>
+    </div>
+  )
+}
+
 // Auth View Component
 function AuthView({ onAuth }: { onAuth: (user: UserType) => void }) {
   const [isLogin, setIsLogin] = useState(true)
@@ -2107,26 +2138,27 @@ function Dashboard({
 
 // Main App Component
 export default function App() {
-  const { 
-    user, 
-    isAuthenticated, 
-    isLoading, 
-    setUser, 
-    setLoading, 
-    currentGroup, 
+  const {
+    user,
+    isAuthenticated,
+    isLoading,
+    setUser,
+    setLoading,
+    currentGroup,
     setCurrentGroup,
     currentList,
     setCurrentList,
     settings,
     setSettings,
-    logout 
+    logout
   } = useAuthStore()
-  
+
   const { setSettings: setSettingsStore } = useSettingsStore()
-  
+
   const [groups, setGroups] = useState<FamilyGroup[]>([])
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [isFetchingData, setIsFetchingData] = useState(false)
 
   // Apply theme when settings change
   useEffect(() => {
@@ -2149,14 +2181,22 @@ export default function App() {
     return () => clearTimeout(timer)
   }, [isLoading, setLoading])
 
+  // Track if we've loaded data for the current user
+  const loadedUserIdRef = useRef<string | null>(null)
+
   // Fetch groups and settings when authenticated
   useEffect(() => {
     if (user) {
+      // Only fetch if we haven't loaded data for this user yet
+      if (loadedUserIdRef.current === user.id) return
+      loadedUserIdRef.current = user.id
+
       const fetchData = async () => {
+        setIsFetchingData(true)
         try {
           const [groupsRes, settingsRes] = await Promise.all([
-            api('/api/groups', {}, user.id),
-            api('/api/settings', {}, user.id)
+            api('/api/groups/', {}, user.id),
+            api('/api/settings/', {}, user.id)
           ])
           setGroups(groupsRes.groups)
           if (settingsRes.settings) {
@@ -2169,11 +2209,20 @@ export default function App() {
           if (error instanceof Error && error.message.includes('autorizzato')) {
             logout()
           }
+        } finally {
+          setIsFetchingData(false)
         }
       }
       fetchData()
     }
   }, [user, setSettings, setSettingsStore, logout])
+
+  // Reset loaded state when user logs out
+  useEffect(() => {
+    if (!user) {
+      loadedUserIdRef.current = null
+    }
+  }, [user])
 
   const handleCreateGroup = async (name: string) => {
     const { group } = await api('/api/groups', {
@@ -2230,20 +2279,19 @@ export default function App() {
     logout()
   }
 
+  // Show loading screen until hydration is complete
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full"
-        />
-      </div>
-    )
+    return <LoadingScreen />
   }
 
+  // Show auth view if not authenticated
   if (!isAuthenticated || !user) {
     return <AuthView onAuth={setUser} />
+  }
+
+  // Show loading while fetching user data
+  if (isFetchingData) {
+    return <LoadingScreen />
   }
 
   if (!currentGroup) {
