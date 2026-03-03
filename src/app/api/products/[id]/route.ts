@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db-turso'
+import { broadcastProductChange } from '@/lib/pusher-server'
 
 // Verify user has access to the product's list
 async function verifyProductAccess(productId: string, userId: string) {
@@ -61,11 +62,13 @@ export async function PUT(
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
 
-    const { hasAccess, product } = await verifyProductAccess(id, userId)
+    const { hasAccess, product, list } = await verifyProductAccess(id, userId)
 
     if (!hasAccess || !product) {
       return NextResponse.json({ error: 'Prodotto non trovato o non autorizzato' }, { status: 404 })
     }
+
+    const groupId = list?.groupId
 
     const body = await request.json()
     const {
@@ -203,6 +206,16 @@ export async function PUT(
       } : null,
     }
 
+    // Broadcast to Pusher for real-time updates
+    if (groupId) {
+      await broadcastProductChange(groupId, {
+        action: 'update',
+        productId: id,
+        productName: updatedProduct.name,
+        userId,
+      })
+    }
+
     return NextResponse.json({ product: updatedProduct })
   } catch (error) {
     console.error('[API] Update product error:', error)
@@ -223,16 +236,29 @@ export async function DELETE(
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
 
-    const { hasAccess, product } = await verifyProductAccess(id, userId)
+    const { hasAccess, product, list } = await verifyProductAccess(id, userId)
 
     if (!hasAccess || !product) {
       return NextResponse.json({ error: 'Prodotto non trovato o non autorizzato' }, { status: 404 })
     }
 
+    const groupId = list?.groupId
+    const productName = product.name
+
     await db.execute({
       sql: 'DELETE FROM Product WHERE id = ?',
       args: [id],
     })
+
+    // Broadcast to Pusher for real-time updates
+    if (groupId) {
+      await broadcastProductChange(groupId, {
+        action: 'delete',
+        productId: id,
+        productName,
+        userId,
+      })
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

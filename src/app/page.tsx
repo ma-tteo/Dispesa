@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuthStore } from '@/store/auth'
 import { useSettingsStore } from '@/store/settings'
-import { io, Socket } from 'socket.io-client'
+import { usePusher } from '@/hooks/usePusher'
 import { AnimatePresence, motion } from 'framer-motion'
 import { 
   ShoppingCart, Plus, Search, Filter, Store, Tag, 
@@ -1471,7 +1471,6 @@ function Dashboard({
   const [filterStatus, setFilterStatus] = useState<'all' | 'TO_BUY' | 'COMPLETED'>('all')
   const [showProductDialog, setShowProductDialog] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
-  const [socket, setSocket] = useState<Socket | null>(null)
   const [showFilters, setShowFilters] = useState(false)
   const [showCreateList, setShowCreateList] = useState(false)
   const [showCategoryDialog, setShowCategoryDialog] = useState(false)
@@ -1480,6 +1479,24 @@ function Dashboard({
   const searchRef = useRef<HTMLDivElement>(null)
   const listTabsRef = useRef<HTMLDivElement>(null)
   const initialLoadDone = useRef(false)
+
+  // Handle product changes from Pusher (real-time notifications)
+  const handleProductChange = useCallback((data: { action: 'create' | 'update' | 'delete'; productId?: string; productName?: string; userId?: string }) => {
+    fetchProducts()
+    // Show notification if it's from another user
+    if (data.userId && data.userId !== user.id && settings?.notifications) {
+      if (data.action === 'create') {
+        toast.info(`🛒 ${data.productName || 'Nuovo prodotto'} aggiunto alla lista`)
+      } else if (data.action === 'update') {
+        toast.info(`✏️ ${data.productName || 'Prodotto'} aggiornato`)
+      } else if (data.action === 'delete') {
+        toast.info(`🗑️ ${data.productName || 'Prodotto'} rimosso dalla lista`)
+      }
+    }
+  }, [user.id, settings?.notifications])
+
+  // Connect to Pusher for real-time updates
+  usePusher(group.id, handleProductChange)
 
   // Generate product suggestions based on search
   useEffect(() => {
@@ -1505,50 +1522,6 @@ function Dashboard({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
-
-  // Initialize WebSocket with notifications (only in development/local)
-  useEffect(() => {
-    // Disable WebSocket on Vercel/production (serverless doesn't support persistent connections)
-    const isLocalhost = typeof window !== 'undefined' && (
-      window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1' ||
-      window.location.hostname.startsWith('21.0.')
-    )
-
-    if (!isLocalhost) {
-      console.log('WebSocket disabled in production')
-      return
-    }
-
-    const newSocket = io('/?XTransformPort=3003', {
-      path: '/',
-      transports: ['websocket'],
-    })
-
-    newSocket.on('connect', () => {
-      newSocket.emit('join-group', { groupId: group.id, userId: user.id })
-    })
-
-    newSocket.on('product-updated', (data: { productId: string; action: 'create' | 'update' | 'delete'; userId?: string; productName?: string }) => {
-      fetchProducts()
-      // Show notification if it's from another user
-      if (data.userId && data.userId !== user.id && settings?.notifications) {
-        if (data.action === 'create') {
-          toast.info(`🛒 ${data.productName || 'Nuovo prodotto'} aggiunto alla lista`)
-        } else if (data.action === 'update') {
-          toast.info(`✏️ ${data.productName || 'Prodotto'} aggiornato`)
-        } else if (data.action === 'delete') {
-          toast.info(`🗑️ ${data.productName || 'Prodotto'} rimosso dalla lista`)
-        }
-      }
-    })
-
-    setSocket(newSocket)
-
-    return () => {
-      newSocket.disconnect()
-    }
-  }, [group.id, user.id, settings?.notifications])
 
   // Fetch lists
   const fetchLists = useCallback(async () => {
@@ -1656,14 +1629,6 @@ function Dashboard({
         method: 'PUT',
         body: JSON.stringify({ status: newStatus }),
       }, user.id)
-      
-      socket?.emit('product-change', { 
-        groupId: group.id, 
-        action: 'update', 
-        productId: product.id,
-        userId: user.id,
-        productName: product.name
-      })
       fetchProducts()
     } catch (error) {
       toast.error('Errore durante l\'aggiornamento')
@@ -1673,13 +1638,6 @@ function Dashboard({
   const handleDelete = async (product: Product) => {
     try {
       await api(`/api/products/${product.id}`, { method: 'DELETE' }, user.id)
-      socket?.emit('product-change', { 
-        groupId: group.id, 
-        action: 'delete', 
-        productId: product.id,
-        userId: user.id,
-        productName: product.name
-      })
       fetchProducts()
       toast.success('Prodotto eliminato')
     } catch (error) {
@@ -1688,13 +1646,6 @@ function Dashboard({
   }
 
   const handleSaveProduct = (product: Product) => {
-    socket?.emit('product-change', { 
-      groupId: group.id, 
-      action: editingProduct ? 'update' : 'create', 
-      productId: product.id,
-      userId: user.id,
-      productName: product.name
-    })
     fetchProducts()
     fetchLists()
     toast.success(editingProduct ? 'Prodotto aggiornato' : 'Prodotto aggiunto')

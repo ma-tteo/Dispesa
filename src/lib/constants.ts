@@ -1,11 +1,20 @@
 // App version - update this with each release
-export const APP_VERSION = 'alpha-v1.1.2'
+export const APP_VERSION = 'alpha-v1.2.0'
 export const APP_NAME = 'Dispensa'
 export const APP_TAGLINE = 'La tua spesa, organizzata'
 export const APP_AUTHOR = 'Dispensa Team'
 
 // Version history for changelog
 export const VERSION_HISTORY = [
+  {
+    version: 'alpha-v1.2.0',
+    date: '2025-01-15',
+    changes: [
+      'Aggiunte notifiche real-time con Pusher',
+      'Notifiche quando altri utenti modificano la lista',
+      'Rimossi WebSocket locali - ora tutto via Pusher',
+    ],
+  },
   {
     version: 'alpha-v1.1.2',
     date: '2025-01-15',

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db-turso'
 import { nanoid } from 'nanoid'
+import { broadcastProductChange } from '@/lib/pusher-server'
 
 // Constants
 const MAX_PRODUCT_NAME_LENGTH = 200
@@ -132,7 +133,7 @@ export async function POST(request: NextRequest) {
     // Verify list exists and user has access
     const accessResult = await db.execute({
       sql: `
-        SELECT l.id
+        SELECT l.id, l.groupId
         FROM List l
         INNER JOIN FamilyGroup fg ON l.groupId = fg.id
         INNER JOIN FamilyMember fm ON fm.groupId = fg.id AND fm.userId = ?
@@ -144,6 +145,8 @@ export async function POST(request: NextRequest) {
     if (accessResult.rows.length === 0) {
       return NextResponse.json({ error: 'Lista non trovata o non hai accesso' }, { status: 403 })
     }
+
+    const groupId = accessResult.rows[0].groupId as string
 
     // Get max sortOrder
     const maxSortResult = await db.execute({
@@ -189,6 +192,14 @@ export async function POST(request: NextRequest) {
       createdAt: now,
       updatedAt: now,
     }
+
+    // Broadcast to Pusher for real-time updates
+    await broadcastProductChange(groupId, {
+      action: 'create',
+      productId,
+      productName: sanitizedName,
+      userId,
+    })
 
     return NextResponse.json({ product })
   } catch (error) {
