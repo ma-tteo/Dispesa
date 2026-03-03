@@ -140,7 +140,7 @@ function applyThemeToDocument(settings: UserSettings | null) {
 // Loading Screen Component
 function LoadingScreen() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background via-muted/30 to-background">
+    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background">
       <motion.div
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -2336,15 +2336,17 @@ export default function App() {
     <>
       {/* Show loading screen while dashboard loads data */}
       {!dashboardReady && <LoadingScreen />}
-      <Dashboard
-        user={user}
-        group={currentGroup}
-        onLeaveGroup={handleLeaveGroup}
-        onLogout={handleLogout}
-        onOpenSettings={() => setShowSettings(true)}
-        settings={settings}
-        onReady={() => setDashboardReady(true)}
-      />
+      <div style={{ visibility: dashboardReady ? 'visible' : 'hidden' }}>
+        <Dashboard
+          user={user}
+          group={currentGroup}
+          onLeaveGroup={handleLeaveGroup}
+          onLogout={handleLogout}
+          onOpenSettings={() => setShowSettings(true)}
+          settings={settings}
+          onReady={() => setDashboardReady(true)}
+        />
+      </div>
       <SettingsDialog
         open={showSettings}
         onOpenChange={setShowSettings}
