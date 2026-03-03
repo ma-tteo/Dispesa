@@ -748,15 +748,15 @@ function ProductCard({
               isCompleted ? 'opacity-60 bg-muted/30' : 'bg-card'
             } rounded-xl`}
           >
-            {/* Toggle button */}
+            {/* Toggle button - larger hitbox */}
             <button
               onClick={handleToggleClick}
-              className="p-0.5 touch-manipulation flex-shrink-0 active:scale-90 transition-transform"
+              className="p-3 -m-2 touch-manipulation flex-shrink-0 active:scale-90 transition-transform"
             >
               {isCompleted ? (
-                <CheckCircle2 className="w-4 h-4 text-primary" />
+                <CheckCircle2 className="w-6 h-6 text-primary" />
               ) : (
-                <Circle className="w-4 h-4 text-muted-foreground/40" />
+                <Circle className="w-6 h-6 text-muted-foreground/40" />
               )}
             </button>
 
@@ -790,12 +790,12 @@ function ProductCard({
             {/* Toggle button */}
             <button
               onClick={handleToggleClick}
-              className="p-0.5 touch-manipulation flex-shrink-0 active:scale-90 transition-transform"
+              className="p-3 -m-2 touch-manipulation flex-shrink-0 active:scale-90 transition-transform"
             >
               {isCompleted ? (
-                <CheckCircle2 className="w-5 h-5 text-primary" />
+                <CheckCircle2 className="w-6 h-6 text-primary" />
               ) : (
-                <Circle className="w-5 h-5 text-muted-foreground/40" />
+                <Circle className="w-6 h-6 text-muted-foreground/40" />
               )}
             </button>
 

@@ -1,11 +1,19 @@
 // App version - update this with each release
-export const APP_VERSION = 'alpha-v1.2.0'
+export const APP_VERSION = 'alpha-v1.2.1'
 export const APP_NAME = 'Dispensa'
 export const APP_TAGLINE = 'La tua spesa, organizzata'
 export const APP_AUTHOR = 'Dispensa Team'
 
 // Version history for changelog
 export const VERSION_HISTORY = [
+  {
+    version: 'alpha-v1.2.1',
+    date: '2025-01-15',
+    changes: [
+      'Aumentata hitbox toggle button per clic più facili',
+      'Icone toggle più grandi (w-6 h-6)',
+    ],
+  },
   {
     version: 'alpha-v1.2.0',
     date: '2025-01-15',
