@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '@/lib/db-turso'
 import bcrypt from 'bcryptjs'
+import { nanoid } from 'nanoid'
 
 // Email validation regex
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -46,11 +47,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Check existing user
-    const existingUser = await db.user.findUnique({
-      where: { email: normalizedEmail }
+    const existingResult = await db.execute({
+      sql: 'SELECT id FROM User WHERE email = ?',
+      args: [normalizedEmail],
     })
 
-    if (existingUser) {
+    if (existingResult.rows.length > 0) {
       return NextResponse.json(
         { error: 'Email già registrata' },
         { status: 400 }
@@ -60,22 +62,22 @@ export async function POST(request: NextRequest) {
     // Create user
     const hashedPassword = await bcrypt.hash(password, 10)
     const sanitizedName = name?.trim().slice(0, MAX_NAME_LENGTH) || null
+    const userId = nanoid()
+    const now = new Date().toISOString()
 
-    const user = await db.user.create({
-      data: {
-        email: normalizedEmail,
-        name: sanitizedName,
-        password: hashedPassword,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        avatar: true,
-        createdAt: true,
-        updatedAt: true,
-      }
+    await db.execute({
+      sql: 'INSERT INTO User (id, email, name, password, avatar, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      args: [userId, normalizedEmail, sanitizedName, hashedPassword, null, now, now],
     })
+
+    const user = {
+      id: userId,
+      email: normalizedEmail,
+      name: sanitizedName,
+      avatar: null,
+      createdAt: now,
+      updatedAt: now,
+    }
 
     return NextResponse.json({ user })
   } catch (error) {

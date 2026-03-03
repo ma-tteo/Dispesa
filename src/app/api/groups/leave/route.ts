@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '@/lib/db-turso'
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,34 +23,58 @@ export async function POST(request: NextRequest) {
     }
 
     // Get group
-    const group = await db.familyGroup.findUnique({
-      where: { id: groupId },
+    const groupResult = await db.execute({
+      sql: 'SELECT * FROM FamilyGroup WHERE id = ?',
+      args: [groupId],
     })
 
-    if (!group) {
+    if (groupResult.rows.length === 0) {
       return NextResponse.json(
         { error: 'Gruppo non trovato' },
         { status: 404 }
       )
     }
 
+    const group = groupResult.rows[0]
+
     // Check if user is the owner
     if (group.ownerId === userId) {
-      // If owner leaves, delete the group (cascade will delete members, lists, products)
-      await db.familyGroup.delete({
-        where: { id: groupId },
+      // If owner leaves, delete the group
+      // First delete all products in lists of this group
+      await db.execute({
+        sql: `
+          DELETE FROM Product WHERE listId IN (
+            SELECT id FROM List WHERE groupId = ?
+          )
+        `,
+        args: [groupId],
       })
+
+      // Delete all lists in this group
+      await db.execute({
+        sql: 'DELETE FROM List WHERE groupId = ?',
+        args: [groupId],
+      })
+
+      // Delete all family members
+      await db.execute({
+        sql: 'DELETE FROM FamilyMember WHERE groupId = ?',
+        args: [groupId],
+      })
+
+      // Delete the group
+      await db.execute({
+        sql: 'DELETE FROM FamilyGroup WHERE id = ?',
+        args: [groupId],
+      })
+
       return NextResponse.json({ success: true, deleted: true })
     }
 
     // Remove user from group
-    await db.familyMember.delete({
-      where: {
-        userId_groupId: {
-          userId,
-          groupId,
-        },
-      },
+    await db.execute({
+      sql: 'DELETE FROM FamilyMember WHERE userId = ? AND groupId = ?',
+      args: [userId, groupId],
     })
 
     return NextResponse.json({ success: true })

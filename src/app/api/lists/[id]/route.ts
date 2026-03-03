@@ -1,26 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '@/lib/db-turso'
 
 // Verify user has access to the list's group
 async function verifyListAccess(listId: string, userId: string) {
-  const list = await db.list.findUnique({
-    where: { id: listId },
-    include: {
-      group: {
-        include: {
-          members: {
-            where: { userId },
-          },
-        },
-      },
-    },
+  const listResult = await db.execute({
+    sql: `
+      SELECT l.*, fm.id as membershipId
+      FROM List l
+      INNER JOIN FamilyGroup fg ON l.groupId = fg.id
+      LEFT JOIN FamilyMember fm ON fm.groupId = fg.id AND fm.userId = ?
+      WHERE l.id = ?
+    `,
+    args: [userId, listId],
   })
 
-  if (!list) {
+  if (listResult.rows.length === 0) {
     return { hasAccess: false, list: null }
   }
 
-  const hasAccess = list.group.members.length > 0
+  const row = listResult.rows[0]
+  const hasAccess = row.membershipId !== null
+
+  const list = {
+    id: row.id as string,
+    name: row.name as string,
+    icon: row.icon as string | null,
+    color: row.color as string | null,
+    groupId: row.groupId as string,
+    createdById: row.createdById as string,
+    sortOrder: Number(row.sortOrder),
+    createdAt: row.createdAt as string,
+    updatedAt: row.updatedAt as string,
+  }
+
   return { hasAccess, list }
 }
 
@@ -46,67 +58,73 @@ export async function PUT(
     const body = await request.json()
     const { name, icon, color, sortOrder } = body
 
-    // Build update data
-    const updateData: {
-      name?: string
-      icon?: string | null
-      color?: string | null
-      sortOrder?: number
-    } = {}
+    // Build update
+    const updates: string[] = []
+    const args: (string | number | null)[] = []
 
     if (name !== undefined) {
-      updateData.name = name.trim()
+      updates.push('name = ?')
+      args.push(name.trim())
     }
     if (icon !== undefined) {
-      updateData.icon = icon || null
+      updates.push('icon = ?')
+      args.push(icon || null)
     }
     if (color !== undefined) {
-      updateData.color = color || null
+      updates.push('color = ?')
+      args.push(color || null)
     }
     if (sortOrder !== undefined) {
-      updateData.sortOrder = sortOrder
+      updates.push('sortOrder = ?')
+      args.push(sortOrder)
     }
 
-    // Update the list
-    if (Object.keys(updateData).length > 0) {
-      await db.list.update({
-        where: { id },
-        data: updateData,
+    if (updates.length > 0) {
+      updates.push('updatedAt = ?')
+      args.push(new Date().toISOString())
+      args.push(id)
+
+      await db.execute({
+        sql: `UPDATE List SET ${updates.join(', ')} WHERE id = ?`,
+        args,
       })
     }
 
     // Fetch updated list with product count and created by user
-    const updatedList = await db.list.findUnique({
-      where: { id },
-      include: {
-        _count: {
-          select: { products: true },
-        },
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
+    const updatedResult = await db.execute({
+      sql: `
+        SELECT 
+          l.id, l.name, l.icon, l.color, l.groupId, l.createdById, l.sortOrder, l.createdAt, l.updatedAt,
+          (SELECT COUNT(*) FROM Product p WHERE p.listId = l.id) as productCount,
+          u.id as userId, u.name as userName
+        FROM List l
+        LEFT JOIN User u ON l.createdById = u.id
+        WHERE l.id = ?
+      `,
+      args: [id],
     })
 
-    // Transform to match expected format
-    const result = updatedList
-      ? {
-          id: updatedList.id,
-          name: updatedList.name,
-          icon: updatedList.icon,
-          color: updatedList.color,
-          groupId: updatedList.groupId,
-          createdById: updatedList.createdById,
-          sortOrder: updatedList.sortOrder,
-          createdAt: updatedList.createdAt,
-          updatedAt: updatedList.updatedAt,
-          productCount: updatedList._count.products,
-          createdBy: updatedList.createdBy,
-        }
-      : null
+    if (updatedResult.rows.length === 0) {
+      return NextResponse.json({ list: null })
+    }
+
+    const row = updatedResult.rows[0]
+    const result = {
+      id: row.id as string,
+      name: row.name as string,
+      icon: row.icon as string | null,
+      color: row.color as string | null,
+      groupId: row.groupId as string,
+      createdById: row.createdById as string,
+      sortOrder: Number(row.sortOrder),
+      createdAt: row.createdAt as string,
+      updatedAt: row.updatedAt as string,
+      productCount: Number(row.productCount),
+      createdBy: row.userId ? {
+        id: row.userId as string,
+        name: row.userName as string | null,
+      } : null,
+    }
 
     return NextResponse.json({ list: result })
   } catch (error) {
@@ -134,9 +152,16 @@ export async function DELETE(
       return NextResponse.json({ error: 'Lista non trovata o non autorizzato' }, { status: 404 })
     }
 
-    // Delete the list (cascade will delete products automatically via Prisma schema)
-    await db.list.delete({
-      where: { id },
+    // Delete products first
+    await db.execute({
+      sql: 'DELETE FROM Product WHERE listId = ?',
+      args: [id],
+    })
+
+    // Delete the list
+    await db.execute({
+      sql: 'DELETE FROM List WHERE id = ?',
+      args: [id],
     })
 
     return NextResponse.json({ success: true })

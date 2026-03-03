@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '@/lib/db-turso'
 import { nanoid } from 'nanoid'
 
 // Constants
@@ -12,11 +12,12 @@ async function generateUniqueInviteCode(): Promise<string> {
     const code = nanoid(8).toUpperCase()
 
     // Check if code already exists
-    const existing = await db.familyGroup.findUnique({
-      where: { inviteCode: code },
+    const result = await db.execute({
+      sql: 'SELECT id FROM FamilyGroup WHERE inviteCode = ?',
+      args: [code],
     })
 
-    if (!existing) {
+    if (result.rows.length === 0) {
       return code
     }
   }
@@ -33,34 +34,39 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
 
-    const groups = await db.familyGroup.findMany({
-      where: {
-        members: {
-          some: {
-            userId,
-          },
-        },
-      },
-      include: {
-        _count: {
-          select: { members: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
+    // Get groups with member count
+    const result = await db.execute({
+      sql: `
+        SELECT 
+          fg.id, 
+          fg.name, 
+          fg.inviteCode, 
+          fg.ownerId, 
+          fg.createdAt, 
+          fg.updatedAt,
+          COUNT(fm.id) as memberCount
+        FROM FamilyGroup fg
+        INNER JOIN FamilyMember fm ON fg.id = fm.groupId
+        WHERE fg.id IN (
+          SELECT groupId FROM FamilyMember WHERE userId = ?
+        )
+        GROUP BY fg.id
+        ORDER BY fg.createdAt DESC
+      `,
+      args: [userId],
     })
 
-    // Transform to match expected format with memberCount
-    const groupsWithMemberCount = groups.map((g) => ({
-      id: g.id,
-      name: g.name,
-      inviteCode: g.inviteCode,
-      ownerId: g.ownerId,
-      createdAt: g.createdAt,
-      updatedAt: g.updatedAt,
-      memberCount: g._count.members,
+    const groups = result.rows.map((row) => ({
+      id: row.id as string,
+      name: row.name as string,
+      inviteCode: row.inviteCode as string,
+      ownerId: row.ownerId as string,
+      createdAt: row.createdAt as string,
+      updatedAt: row.updatedAt as string,
+      memberCount: Number(row.memberCount),
     }))
 
-    return NextResponse.json({ groups: groupsWithMemberCount })
+    return NextResponse.json({ groups })
   } catch (error) {
     console.error('[API] Error fetching groups:', error)
     return NextResponse.json({ error: 'Errore durante il recupero dei gruppi' }, { status: 500 })
@@ -90,20 +96,30 @@ export async function POST(request: NextRequest) {
     }
 
     const inviteCode = await generateUniqueInviteCode()
+    const groupId = nanoid()
+    const memberId = nanoid()
+    const now = new Date().toISOString()
 
-    // Create group with the creator as owner and member
-    const group = await db.familyGroup.create({
-      data: {
-        name: sanitizedName,
-        inviteCode,
-        ownerId: userId,
-        members: {
-          create: {
-            userId,
-          },
-        },
+    // Create group and add creator as member in a transaction
+    await db.batch([
+      {
+        sql: 'INSERT INTO FamilyGroup (id, name, inviteCode, ownerId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+        args: [groupId, sanitizedName, inviteCode, userId, now, now],
       },
-    })
+      {
+        sql: 'INSERT INTO FamilyMember (id, userId, groupId, joinedAt) VALUES (?, ?, ?, ?)',
+        args: [memberId, userId, groupId, now],
+      },
+    ])
+
+    const group = {
+      id: groupId,
+      name: sanitizedName,
+      inviteCode,
+      ownerId: userId,
+      createdAt: now,
+      updatedAt: now,
+    }
 
     return NextResponse.json({ group })
   } catch (error) {

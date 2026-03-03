@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '@/lib/db-turso'
 import bcrypt from 'bcryptjs'
 
 // Email validation regex
@@ -28,28 +28,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Query with normalized email
-    const user = await db.user.findUnique({
-      where: { email: normalizedEmail },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        password: true,
-        avatar: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    const result = await db.execute({
+      sql: 'SELECT id, email, name, password, avatar, createdAt, updatedAt FROM User WHERE email = ?',
+      args: [normalizedEmail],
     })
 
     // Generic error message to prevent user enumeration
-    if (!user) {
+    if (result.rows.length === 0) {
       return NextResponse.json(
         { error: 'Credenziali non valide' },
         { status: 401 }
       )
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password)
+    const user = result.rows[0]
+    const isPasswordValid = await bcrypt.compare(password, user.password as string)
 
     if (!isPasswordValid) {
       return NextResponse.json(
@@ -58,7 +51,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { password: _, ...userWithoutPassword } = user
+    const userWithoutPassword = {
+      id: user.id as string,
+      email: user.email as string,
+      name: user.name as string | null,
+      avatar: user.avatar as string | null,
+      createdAt: user.createdAt as string,
+      updatedAt: user.updatedAt as string,
+    }
 
     return NextResponse.json({ user: userWithoutPassword })
   } catch (error) {

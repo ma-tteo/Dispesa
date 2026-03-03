@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '@/lib/db-turso'
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,23 +12,26 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        avatar: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    const result = await db.execute({
+      sql: 'SELECT id, email, name, avatar, createdAt, updatedAt FROM User WHERE id = ?',
+      args: [userId],
     })
 
-    if (!user) {
+    if (result.rows.length === 0) {
       return NextResponse.json(
         { error: 'Utente non trovato' },
         { status: 404 }
       )
+    }
+
+    const row = result.rows[0]
+    const user = {
+      id: row.id as string,
+      email: row.email as string,
+      name: row.name as string | null,
+      avatar: row.avatar as string | null,
+      createdAt: row.createdAt as string,
+      updatedAt: row.updatedAt as string,
     }
 
     return NextResponse.json({ user })

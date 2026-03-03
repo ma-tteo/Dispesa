@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '@/lib/db-turso'
+import { nanoid } from 'nanoid'
 
 // Constants
 const MAX_GROUP_MEMBERS = 10
@@ -29,28 +30,28 @@ export async function POST(request: NextRequest) {
     const sanitizedCode = inviteCode.toUpperCase().trim().slice(0, 20)
 
     // Find group by invite code
-    const group = await db.familyGroup.findUnique({
-      where: { inviteCode: sanitizedCode },
+    const groupResult = await db.execute({
+      sql: 'SELECT * FROM FamilyGroup WHERE inviteCode = ?',
+      args: [sanitizedCode],
     })
 
-    if (!group) {
+    if (groupResult.rows.length === 0) {
       return NextResponse.json(
         { error: 'Codice invito non valido' },
         { status: 404 }
       )
     }
 
+    const group = groupResult.rows[0]
+    const groupId = group.id as string
+
     // Check if user is already a member
-    const existingMembership = await db.familyMember.findUnique({
-      where: {
-        userId_groupId: {
-          userId,
-          groupId: group.id,
-        },
-      },
+    const membershipResult = await db.execute({
+      sql: 'SELECT id FROM FamilyMember WHERE userId = ? AND groupId = ?',
+      args: [userId, groupId],
     })
 
-    if (existingMembership) {
+    if (membershipResult.rows.length > 0) {
       return NextResponse.json(
         { error: 'Sei già membro di questo gruppo' },
         { status: 400 }
@@ -58,9 +59,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if group has room (max members)
-    const memberCount = await db.familyMember.count({
-      where: { groupId: group.id },
+    const memberCountResult = await db.execute({
+      sql: 'SELECT COUNT(*) as count FROM FamilyMember WHERE groupId = ?',
+      args: [groupId],
     })
+
+    const memberCount = Number(memberCountResult.rows[0]?.count || 0)
 
     if (memberCount >= MAX_GROUP_MEMBERS) {
       return NextResponse.json(
@@ -70,39 +74,63 @@ export async function POST(request: NextRequest) {
     }
 
     // Add user to group
-    await db.familyMember.create({
-      data: {
-        userId,
-        groupId: group.id,
-      },
+    const memberId = nanoid()
+    const now = new Date().toISOString()
+
+    await db.execute({
+      sql: 'INSERT INTO FamilyMember (id, userId, groupId, joinedAt) VALUES (?, ?, ?, ?)',
+      args: [memberId, userId, groupId, now],
     })
 
     // Fetch updated group with members and owner
-    const updatedGroup = await db.familyGroup.findUnique({
-      where: { id: group.id },
-      include: {
-        members: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                avatar: true,
-              },
-            },
-          },
-        },
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            avatar: true,
-          },
-        },
-      },
+    const membersResult = await db.execute({
+      sql: `
+        SELECT 
+          fm.id as memberId,
+          fm.joinedAt,
+          u.id, u.name, u.email, u.avatar
+        FROM FamilyMember fm
+        INNER JOIN User u ON fm.userId = u.id
+        WHERE fm.groupId = ?
+      `,
+      args: [groupId],
     })
+
+    const ownerResult = await db.execute({
+      sql: 'SELECT id, name, email, avatar FROM User WHERE id = ?',
+      args: [group.ownerId as string],
+    })
+
+    const members = membersResult.rows.map((row) => ({
+      id: row.memberId as string,
+      userId: row.id as string,
+      groupId: groupId,
+      joinedAt: row.joinedAt as string,
+      user: {
+        id: row.id as string,
+        name: row.name as string | null,
+        email: row.email as string,
+        avatar: row.avatar as string | null,
+      },
+    }))
+
+    const owner = ownerResult.rows[0] ? {
+      id: ownerResult.rows[0].id as string,
+      name: ownerResult.rows[0].name as string | null,
+      email: ownerResult.rows[0].email as string,
+      avatar: ownerResult.rows[0].avatar as string | null,
+    } : null
+
+    const updatedGroup = {
+      id: group.id as string,
+      name: group.name as string,
+      inviteCode: group.inviteCode as string,
+      ownerId: group.ownerId as string,
+      createdAt: group.createdAt as string,
+      updatedAt: group.updatedAt as string,
+      members,
+      owner,
+    }
 
     return NextResponse.json({ group: updatedGroup })
   } catch (error) {

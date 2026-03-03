@@ -1,14 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db } from '@/lib/db-turso'
+import { nanoid } from 'nanoid'
 
 // GET /api/categories
 export async function GET(request: NextRequest) {
   try {
     // Note: Categories are public (needed for registration/login flow)
     // But we still log for debugging
-    const categories = await db.category.findMany({
-      orderBy: { name: 'asc' },
+    const result = await db.execute({
+      sql: 'SELECT * FROM Category ORDER BY name ASC',
+      args: [],
     })
+
+    const categories = result.rows.map((row) => ({
+      id: row.id as string,
+      name: row.name as string,
+      icon: row.icon as string | null,
+      color: row.color as string | null,
+      createdAt: row.createdAt as string,
+    }))
 
     return NextResponse.json({ categories })
   } catch (error) {
@@ -33,21 +43,30 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if category already exists
-    const existing = await db.category.findUnique({
-      where: { name: name.trim() },
+    const existingResult = await db.execute({
+      sql: 'SELECT id FROM Category WHERE name = ?',
+      args: [name.trim()],
     })
 
-    if (existing) {
+    if (existingResult.rows.length > 0) {
       return NextResponse.json({ error: 'Categoria già esistente' }, { status: 400 })
     }
 
-    const category = await db.category.create({
-      data: {
-        name: name.trim(),
-        icon: icon || '📦',
-        color: color || '#64748b',
-      },
+    const categoryId = nanoid()
+    const now = new Date().toISOString()
+
+    await db.execute({
+      sql: 'INSERT INTO Category (id, name, icon, color, createdAt) VALUES (?, ?, ?, ?, ?)',
+      args: [categoryId, name.trim(), icon || '📦', color || '#64748b', now],
     })
+
+    const category = {
+      id: categoryId,
+      name: name.trim(),
+      icon: icon || '📦',
+      color: color || '#64748b',
+      createdAt: now,
+    }
 
     return NextResponse.json({ category })
   } catch (error) {
