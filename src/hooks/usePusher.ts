@@ -1,32 +1,14 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import Pusher from 'pusher-js'
 
 // Pusher configuration
 const PUSHER_KEY = process.env.NEXT_PUBLIC_PUSHER_KEY || '41901fd7a4c9fcd4b088'
 const PUSHER_CLUSTER = process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'eu'
 
-// Request notification permission
-async function requestNotificationPermission() {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
-    return false
-  }
-  
-  if (Notification.permission === 'granted') {
-    return true
-  }
-  
-  if (Notification.permission !== 'denied') {
-    const permission = await Notification.requestPermission()
-    return permission === 'granted'
-  }
-  
-  return false
-}
-
 // Show browser notification
-function showBrowserNotification(title: string, body: string, icon?: string) {
+function showBrowserNotification(title: string, body: string) {
   if (typeof window === 'undefined' || !('Notification' in window)) {
     return
   }
@@ -34,7 +16,7 @@ function showBrowserNotification(title: string, body: string, icon?: string) {
   if (Notification.permission === 'granted') {
     new Notification(title, {
       body,
-      icon: icon || '/icons/icon.svg',
+      icon: '/icons/icon.svg',
       badge: '/icons/icon.svg',
       tag: 'dispensa-update',
       renotify: true,
@@ -50,14 +32,27 @@ export function usePusher(
 ) {
   const pusherRef = useRef<Pusher | null>(null)
   const channelRef = useRef<Pusher.Channel | null>(null)
+  
+  // Use refs to store callbacks to avoid reconnections
+  const onProductChangeRef = useRef(onProductChange)
+  const currentUserIdRef = useRef(currentUserId)
+  const notificationsEnabledRef = useRef(notificationsEnabled)
+  
+  // Keep refs updated
+  useEffect(() => {
+    onProductChangeRef.current = onProductChange
+  }, [onProductChange])
+  
+  useEffect(() => {
+    currentUserIdRef.current = currentUserId
+  }, [currentUserId])
+  
+  useEffect(() => {
+    notificationsEnabledRef.current = notificationsEnabled
+  }, [notificationsEnabled])
 
   useEffect(() => {
     if (!groupId) return
-
-    // Request notification permission on mount
-    if (notificationsEnabled) {
-      requestNotificationPermission()
-    }
 
     // Initialize Pusher client
     const pusher = new Pusher(PUSHER_KEY, {
@@ -70,13 +65,13 @@ export function usePusher(
     const channel = pusher.subscribe(`group-${groupId}`)
     channelRef.current = channel
 
-    // Listen for product changes
+    // Listen for product changes - use refs in the handler to avoid reconnections
     channel.bind('product-change', (data: { action: 'create' | 'update' | 'delete'; productId?: string; productName?: string; userId?: string }) => {
-      // Call the callback to update UI
-      onProductChange(data)
+      // Call the callback to update UI using ref
+      onProductChangeRef.current(data)
       
       // Show browser notification if enabled and from another user
-      if (notificationsEnabled && data.userId && data.userId !== currentUserId) {
+      if (notificationsEnabledRef.current && data.userId && data.userId !== currentUserIdRef.current) {
         let title = ''
         let body = ''
         
@@ -109,7 +104,7 @@ export function usePusher(
         pusherRef.current.disconnect()
       }
     }
-  }, [groupId, onProductChange, currentUserId, notificationsEnabled])
+  }, [groupId]) // Only depend on groupId - use refs for everything else
 
   return null
 }

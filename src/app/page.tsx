@@ -529,21 +529,37 @@ function SettingsDialog({
     }
   }, [onUpdateSettings])
 
+  // Track if we're requesting permission to prevent double-clicks
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false)
+
+  // Get actual notification state based on browser permission
+  const notificationsEnabled = typeof window !== 'undefined' && 'Notification' in window
+    ? (settings?.notifications ?? false) && Notification.permission === 'granted'
+    : false
+
   // Handle notifications toggle - request browser permission
   const handleNotificationsChange = useCallback(async (checked: boolean) => {
+    if (isRequestingPermission) return
+    
     if (checked) {
       // Request browser notification permission
       if (typeof window !== 'undefined' && 'Notification' in window) {
-        const permission = await Notification.requestPermission()
+        setIsRequestingPermission(true)
         
-        if (permission === 'granted') {
-          await updateSetting('notifications', true)
-          toast.success('Notifiche attivate!')
-        } else if (permission === 'denied') {
-          toast.error('Permesso negato. Abilita le notifiche nelle impostazioni del browser.')
-        } else {
-          // User dismissed the prompt
-          toast.info('Permetti le notifiche per ricevere aggiornamenti')
+        try {
+          const permission = await Notification.requestPermission()
+          
+          if (permission === 'granted') {
+            await updateSetting('notifications', true)
+            toast.success('Notifiche attivate!')
+          } else if (permission === 'denied') {
+            toast.error('Permesso negato. Abilita le notifiche nelle impostazioni del browser.')
+          } else {
+            // User dismissed the prompt
+            toast.info('Permetti le notifiche per ricevere aggiornamenti')
+          }
+        } finally {
+          setIsRequestingPermission(false)
         }
       } else {
         toast.error('Il browser non supporta le notifiche')
@@ -552,7 +568,7 @@ function SettingsDialog({
       await updateSetting('notifications', false)
       toast.info('Notifiche disattivate')
     }
-  }, [updateSetting])
+  }, [updateSetting, isRequestingPermission])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -629,8 +645,9 @@ function SettingsDialog({
             <div className="flex items-center justify-between py-1">
               <Label className="text-sm">Notifiche</Label>
               <Switch
-                checked={getSetting('notifications', true)}
+                checked={notificationsEnabled}
                 onCheckedChange={handleNotificationsChange}
+                disabled={isRequestingPermission}
               />
             </div>
           </div>

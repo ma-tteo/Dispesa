@@ -1,11 +1,20 @@
 // App version - update this with each release
-export const APP_VERSION = 'alpha-v1.2.4'
+export const APP_VERSION = 'alpha-v1.2.5'
 export const APP_NAME = 'Dispensa'
 export const APP_TAGLINE = 'La tua spesa, organizzata'
 export const APP_AUTHOR = 'Dispensa Team'
 
 // Version history for changelog
 export const VERSION_HISTORY = [
+  {
+    version: 'alpha-v1.2.5',
+    date: '2025-01-15',
+    changes: [
+      'Fix connessione WebSocket Pusher (non si riconnetteva più)',
+      'Fix richiesta permesso notifiche quando si attiva il toggle',
+      'Lo stato notifiche ora riflette il permesso del browser',
+    ],
+  },
   {
     version: 'alpha-v1.2.4',
     date: '2025-01-15',
