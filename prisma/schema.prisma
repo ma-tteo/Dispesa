@@ -1,0 +1,131 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  driverAdapters  = true
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String        @id @default(cuid())
+  email         String        @unique
+  name          String?
+  password      String
+  avatar        String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  familyMemberships FamilyMember[]
+  products      Product[]
+  ownedGroups   FamilyGroup[] @relation("GroupOwner")
+  lists         List[]        @relation("ListCreator")
+}
+
+model FamilyGroup {
+  id          String        @id @default(cuid())
+  name        String
+  inviteCode  String        @unique
+  ownerId     String
+  owner       User          @relation("GroupOwner", fields: [ownerId], references: [id])
+  members     FamilyMember[]
+  lists       List[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model FamilyMember {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupId   String
+  group     FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  joinedAt  DateTime   @default(now())
+
+  @@unique([userId, groupId])
+}
+
+model List {
+  id          String      @id @default(cuid())
+  name        String
+  icon        String?
+  color       String?
+  groupId     String
+  group       FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User        @relation("ListCreator", fields: [createdById], references: [id])
+  products    Product[]
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([groupId])
+}
+
+model Product {
+  id            String      @id @default(cuid())
+  name          String
+  categoryId    String?
+  category      Category?   @relation(fields: [categoryId], references: [id])
+  storeId       String?
+  store         Store?      @relation(fields: [storeId], references: [id])
+  forAllStores  Boolean     @default(false)
+  price         Float?
+  weight        String?
+  quantity      Int         @default(1)
+  imageUrl      String?
+  status        ProductStatus @default(TO_BUY)
+  notes         String?
+  listId        String
+  list          List        @relation(fields: [listId], references: [id], onDelete: Cascade)
+  createdById   String
+  createdBy     User        @relation(fields: [createdById], references: [id])
+  sortOrder     Int         @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([listId])
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  icon        String?
+  color       String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+}
+
+model Store {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  icon        String?
+  color       String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+}
+
+model UserSettings {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  theme           String    @default("light")
+  primaryColor    String    @default("mint")
+  fontSize        String    @default("medium")
+  compactMode     Boolean   @default(false)
+  showPrices      Boolean   @default(true)
+  showImages      Boolean   @default(false)
+  defaultStoreId  String?
+  currency        String    @default("EUR")
+  language        String    @default("it")
+  notifications   Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum ProductStatus {
+  TO_BUY
+  COMPLETED
+}
